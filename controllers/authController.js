@@ -104,9 +104,12 @@ exports.impersonateTenant = async (req, res) => {
   try {
     const { tenantId, pin } = req.body;
 
-    const masterPinEnv = process.env.WOLF_MASTER_PIN || '7777';
-    const validPins = [masterPinEnv, '7777', 'wolf777', 'admin123'];
-    if (!pin || !validPins.includes(pin)) {
+    const masterPinEnv = process.env.WOLF_MASTER_PIN;
+    if (!masterPinEnv) {
+      return res.status(500).json({ error: 'Master PIN environment variable not configured on server' });
+    }
+
+    if (!pin || pin !== masterPinEnv) {
       return res.status(401).json({ error: 'Unauthorized Super Owner security PIN' });
     }
 

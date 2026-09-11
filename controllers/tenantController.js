@@ -276,10 +276,9 @@ exports.rewardCoins = async (req, res) => {
 exports.getAllOrganizationsAdmin = async (req, res) => {
   try {
     const masterPin = req.headers['x-master-pin'] || req.query.pin;
-    const masterPinEnv = process.env.WOLF_MASTER_PIN || '7777';
-    const validPins = [masterPinEnv, '7777', 'wolf777', 'admin123'];
+    const masterPinEnv = process.env.WOLF_MASTER_PIN;
 
-    if (!masterPin || !validPins.includes(masterPin)) {
+    if (!masterPinEnv || !masterPin || masterPin !== masterPinEnv) {
       return res.status(403).json({ error: '🔒 Access Denied: Invalid Super Owner Master PIN' });
     }
 
