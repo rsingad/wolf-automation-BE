@@ -27,7 +27,12 @@ async function generateAIResponse(tenantId, customerId, incomingMessage) {
       // Fallback to first tenant in DB if ID doesn't match
       tenant = await Tenant.findOne();
     }
-    
+
+    if (tenant && tenant.isFrozen) {
+      console.log(`[AI] Skipped replying because tenant ${tenant.name} is FROZEN by Super Owner. Reason: ${tenant.freezeReason}`);
+      return "⚠️ Notice: This business account is currently paused/frozen by system administration. Please contact support to restore services.";
+    }
+
     // 2. Fetch Customer specifics
     const customer = await Customer.findById(customerId);
     
@@ -47,9 +52,12 @@ async function generateAIResponse(tenantId, customerId, incomingMessage) {
     recentMessages.reverse();
 
     // 4. Construct the prompt
-    let systemPrompt = `You are a helpful, smart, and polite WhatsApp AI assistant replying to messages on behalf of a business.
+    let systemPrompt = `You are a helpful, highly intelligent, and polite WhatsApp AI assistant replying to messages on behalf of a business.
 UNDER NO CIRCUMSTANCES should you ever reveal that you are an AI, a language model, or a bot. You must perfectly mimic a helpful human customer representative.
-Always reply in the same language and tone as the customer (e.g., Hinglish, Hindi, or English). Keep your answers clear, concise, logical, and easy to understand. Never give confusing or nonsensical replies.`;
+CRITICAL LANGUAGE MATCHING RULE:
+1. Always auto-detect and reply in the EXACT SAME language, dialect, and script as the customer (e.g. Pure Hindi, Hinglish, English, Gujarati, Marathi, etc.).
+2. If the user sends a message in Hindi (हिन्दी या हिंग्लिश), reply naturally in warm, friendly Hindi/Hinglish.
+3. Obey all business rules and instructions provided in any language (Hindi or English).`;
 
     if (tenant && tenant.botPrompt) {
       systemPrompt += `\n\n[GLOBAL BUSINESS RULE]\n${tenant.botPrompt}`;

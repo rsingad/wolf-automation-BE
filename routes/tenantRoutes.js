@@ -9,4 +9,9 @@ router.post('/test-voice', tenantController.testVoiceSample);
 router.get('/warmup/:tenantId', tenantController.getWarmupStatus);
 router.post('/reward-coins/:tenantId', tenantController.rewardCoins);
 
+// Wolf Master Command Center Admin Routes
+router.get('/admin/organizations', tenantController.getAllOrganizationsAdmin);
+router.post('/admin/manual-grant', tenantController.manualCoinGrantAdmin);
+router.post('/admin/toggle-freeze', tenantController.toggleFreezeTenantAdmin);
+
 module.exports = router;

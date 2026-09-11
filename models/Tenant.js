@@ -37,7 +37,11 @@ const tenantSchema = new mongoose.Schema({
   accountLevel: { type: Number, default: 1 }, // 1: Warmup, 2: Growth, 3: Pro, 4: Enterprise
   dailyMessagesSent: { type: Number, default: 0 }, // Daily outbound count
   lastDailyResetDate: { type: String, default: "" }, // ISO date YYYY-MM-DD
-  totalLifetimeMessagesSent: { type: Number, default: 0 }, // Total lifetime sent count
+  role: { type: String, enum: ['tenant', 'admin', 'master_admin'], default: 'tenant' }, // Master Admin access control
+  masterSecretPin: { type: String, default: "" }, // Secret Pin for Master Admin access
+  isFrozen: { type: Boolean, default: false }, // Super Owner Account Freeze Status
+  freezeReason: { type: String, default: "" }, // Freeze Reason (e.g., Free Demo Expired, Violation)
+  freezeDate: { type: Date },
   wolfCoins: { type: Number, default: 500000 },
   wolfTokenBalance: { type: Number, default: 500000 }, // Default 500,000 Wolf Tokens allocated
   totalWolfTokensAllocated: { type: Number, default: 500000 }

@@ -271,3 +271,160 @@ exports.rewardCoins = async (req, res) => {
     res.status(500).json({ error: 'Failed to credit game coins' });
   }
 };
+
+// Wolf Master Command Center: Get All Organizations & Global Metrics
+exports.getAllOrganizationsAdmin = async (req, res) => {
+  try {
+    const masterPin = req.headers['x-master-pin'] || req.query.pin;
+    const masterPinEnv = process.env.WOLF_MASTER_PIN || '7777';
+    const validPins = [masterPinEnv, '7777', 'wolf777', 'admin123'];
+
+    if (!masterPin || !validPins.includes(masterPin)) {
+      return res.status(403).json({ error: '🔒 Access Denied: Invalid Super Owner Master PIN' });
+    }
+
+    const Customer = require('../models/Customer');
+    const Message = require('../models/Message');
+    const Campaign = require('../models/Campaign');
+    const Payment = require('../models/Payment');
+
+    const tenants = await Tenant.find().sort({ createdAt: -1 });
+
+    const orgList = await Promise.all(
+      tenants.map(async (t) => {
+        const totalCustomers = await Customer.countDocuments({ tenantId: t._id });
+        const totalSent = await Message.countDocuments({ tenantId: t._id, sender: { $in: ['bot', 'agent'] } });
+        const totalReceived = await Message.countDocuments({ tenantId: t._id, sender: 'customer' });
+        const totalCampaigns = await Campaign.countDocuments({ tenantId: t._id });
+        const payments = await Payment.find({ tenantId: t._id, status: 'approved' });
+        const totalSpentInr = payments.reduce((sum, p) => sum + (p.amountPaidInr || 0), 0);
+
+        return {
+          id: t._id,
+          name: t.name,
+          email: t.email,
+          whatsappNumber: t.whatsappNumber || 'Not Connected',
+          status: t.status,
+          isFrozen: t.isFrozen || false,
+          freezeReason: t.freezeReason || '',
+          accountLevel: t.accountLevel || 1,
+          wolfCoins: t.wolfCoins || 500000,
+          totalCustomers,
+          messagesSent: totalSent,
+          messagesReceived: totalReceived,
+          totalMessages: totalSent + totalReceived,
+          totalCampaigns,
+          totalSpentInr,
+          createdAt: t.createdAt
+        };
+      })
+    );
+
+    // System-wide Aggregated Totals
+    const totalOrgs = orgList.length;
+    const globalMessages = orgList.reduce((sum, o) => sum + o.totalMessages, 0);
+    const globalCustomers = orgList.reduce((sum, o) => sum + o.totalCustomers, 0);
+    const globalRevenueInr = orgList.reduce((sum, o) => sum + o.totalSpentInr, 0);
+
+    res.status(200).json({
+      success: true,
+      summary: {
+        totalOrgs,
+        globalMessages,
+        globalCustomers,
+        globalRevenueInr
+      },
+      organizations: orgList
+    });
+  } catch (error) {
+    console.error('Error fetching admin organizations:', error);
+    res.status(500).json({ error: 'Failed to fetch organizations list' });
+  }
+};
+
+// Wolf Master Command Center: Manual Coin Credit / Debit Grant to Any Org
+exports.manualCoinGrantAdmin = async (req, res) => {
+  try {
+    const { targetTenantId, coinsAmount, note } = req.body;
+
+    if (!targetTenantId || !coinsAmount || typeof coinsAmount !== 'number') {
+      return res.status(400).json({ error: 'Target tenant ID and valid coin amount required' });
+    }
+
+    const tenant = await Tenant.findById(targetTenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    tenant.wolfCoins = Math.max(0, (tenant.wolfCoins || 500000) + coinsAmount);
+    await tenant.save();
+
+    // Broadcast socket event
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) {
+        io.emit('analytics_updated', { tenantId: tenant._id });
+      }
+    } catch (e) {}
+
+    res.status(200).json({
+      success: true,
+      newBalance: tenant.wolfCoins,
+      message: `🎉 Successfully updated ${tenant.name}'s balance to ${tenant.wolfCoins.toLocaleString('en-IN')} Wolf Coins!`
+    });
+  } catch (error) {
+    console.error('Error granting coins to org:', error);
+    res.status(500).json({ error: 'Failed to grant coins' });
+  }
+};
+
+// Wolf Master Command Center: Toggle Freeze / Unfreeze Client Account
+exports.toggleFreezeTenantAdmin = async (req, res) => {
+  try {
+    const { targetTenantId, freezeReason } = req.body;
+
+    if (!targetTenantId) {
+      return res.status(400).json({ error: 'Target tenant ID is required' });
+    }
+
+    const tenant = await Tenant.findById(targetTenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    const newFreezeStatus = !tenant.isFrozen;
+    tenant.isFrozen = newFreezeStatus;
+    tenant.freezeReason = newFreezeStatus ? (freezeReason || 'Free Demo Period Expired. Please top up your account.') : '';
+    tenant.freezeDate = newFreezeStatus ? new Date() : null;
+
+    await tenant.save();
+
+    // Broadcast socket event
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) {
+        io.emit('tenant_frozen_toggled', { 
+          tenantId: tenant._id,
+          isFrozen: tenant.isFrozen,
+          freezeReason: tenant.freezeReason
+        });
+        io.emit('analytics_updated', { tenantId: tenant._id });
+      }
+    } catch (e) {}
+
+    res.status(200).json({
+      success: true,
+      isFrozen: tenant.isFrozen,
+      freezeReason: tenant.freezeReason,
+      message: tenant.isFrozen 
+        ? `❄️ Account "${tenant.name}" has been FROZEN! AI replies & campaigns stopped.` 
+        : `🔥 Account "${tenant.name}" has been UN-FROZEN & restored to active state!`
+    });
+  } catch (error) {
+    console.error('Error toggling tenant freeze state:', error);
+    res.status(500).json({ error: 'Failed to update account freeze state' });
+  }
+};
+

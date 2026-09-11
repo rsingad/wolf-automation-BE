@@ -33,6 +33,7 @@ const analyticsRoutes = require('./routes/analyticsRoutes');
 const paymentRoutes = require('./routes/paymentRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
+const mailRoutes = require('./routes/mailRoutes');
 
 // Serve static uploads
 app.use('/uploads', express.static(require('path').join(__dirname, 'public/uploads')));
@@ -48,6 +49,7 @@ app.use('/api/analytics', analyticsRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/admin/mail', mailRoutes);
 
 const PORT = process.env.PORT || 5000;
 
