@@ -64,18 +64,27 @@ router.post('/login-session-cookie', async (req, res) => {
   }
 });
 
-// Disconnect Instagram account
+// Disconnect Instagram account & Stop Listener
 router.post('/disconnect', async (req, res) => {
   try {
     const { tenantId } = req.body;
     if (!tenantId) return res.status(400).json({ error: 'Tenant ID is required.' });
 
+    // Stop real-time polling listener and remove client instance
+    instagramService.stopInstagramRealListener(tenantId);
+
     await Tenant.findByIdAndUpdate(tenantId, {
       instagramConnected: false,
-      instagramUsername: ''
+      instagramUsername: '',
+      instagramFullName: '',
+      instagramProfilePic: '',
+      instagramBio: '',
+      instagramFollowersCount: 0,
+      instagramFollowingCount: 0,
+      instagramPostsCount: 0
     });
 
-    return res.json({ success: true, message: 'Instagram Account disconnected.' });
+    return res.json({ success: true, message: 'Instagram Account disconnected and polling listener stopped.' });
   } catch (error) {
     console.error('[Instagram Disconnect Error]:', error);
     return res.status(500).json({ error: 'Failed to disconnect account.' });

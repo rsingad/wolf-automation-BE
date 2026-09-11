@@ -227,10 +227,35 @@ exports.loginRealInstagramAccount = async (tenantId, username, password) => {
 };
 
 /**
+ * 🛑 Stop Instagram DM Listener & Disconnect Session
+ */
+exports.stopInstagramRealListener = (tenantId) => {
+  const tIdStr = tenantId.toString();
+  console.log(`[Instagram Listener] 🛑 Stopping Live DM Polling loop for Tenant '${tIdStr}'...`);
+
+  // Clear polling interval
+  if (igClients.has(`${tIdStr}_interval`)) {
+    clearInterval(igClients.get(`${tIdStr}_interval`));
+    igClients.delete(`${tIdStr}_interval`);
+  }
+
+  // Remove active client instance
+  if (igClients.has(tIdStr)) {
+    igClients.delete(tIdStr);
+  }
+
+  console.log(`[Instagram Listener] ✅ Session completely stopped and cleared for Tenant '${tIdStr}'.`);
+};
+
+/**
  * 🎯 Real-Time Instagram DM Polling Listener (Listens for incoming target messages)
  */
 exports.startInstagramRealListener = (tenantId, ig) => {
-  console.log(`[Instagram Listener] 🎧 Starting Live Real-Time DM Polling loop for Tenant '${tenantId}'...`);
+  const tIdStr = tenantId.toString();
+  // Stop existing listener if any
+  exports.stopInstagramRealListener(tIdStr);
+
+  console.log(`[Instagram Listener] 🎧 Starting Live Real-Time DM Polling loop for Tenant '${tIdStr}'...`);
   
   const pollInterval = setInterval(async () => {
     try {
