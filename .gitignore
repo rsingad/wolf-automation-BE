@@ -1,22 +1,42 @@
 # Dependencies
 node_modules/
 
-# WhatsApp Baileys Auth Sessions (CRITICAL - DO NOT COMMIT AUTH TO GIT)
+# WhatsApp Baileys Auth Sessions & Keys (CRITICAL SECURITY)
 auth_info_baileys/
+baileys_store/
+*.session
+*.json.key
 
 # Media Uploads & Temp Storage
 uploads/
 temp/
+media/
+public/uploads/
+public/audio/
+*.mp3
+*.wav
+*.ogg
+*.webp
 
-# Environment files
+# Scratch & Temporary Test Scripts
+scratch.js
+testContacts.js
+test/
+scratch/
+
+# Environment files & Secret Keys
 .env
 .env.local
+.env.production
+*.pem
 
 # Logs
 logs/
 *.log
 
-# Editor & OS files
+# System & Editor Dumps
 .DS_Store
 .vscode/
 .idea/
+*.swp
+
