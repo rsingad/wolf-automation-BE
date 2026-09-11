@@ -57,14 +57,11 @@ exports.getDashboardStats = async (req, res) => {
     }
 
     const sumLast12 = last12ActivityCounts.reduce((acc, c) => acc + c, 0);
-    const maxCount = Math.max(...last12ActivityCounts, 1);
-    const defaultPattern = [35, 55, 40, 75, 50, 85, 95, 60, 80, 65, 90, 75];
+    const maxCount = Math.max(...last12ActivityCounts, 0);
 
-    const engagementData = last12ActivityCounts.map((count, idx) => {
-      if (sumLast12 === 0) {
-        return defaultPattern[idx];
-      }
-      return Math.max(20, Math.round((count / maxCount) * 80) + 15);
+    const engagementData = last12ActivityCounts.map((count) => {
+      if (maxCount === 0) return 0;
+      return Math.round((count / maxCount) * 100);
     });
 
     res.status(200).json({
