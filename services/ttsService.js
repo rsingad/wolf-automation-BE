@@ -2,6 +2,7 @@ const { EdgeTTS } = require('node-edge-tts');
 const fs = require('fs');
 const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
+const { cloudinary } = require('../config/cloudinary');
 
 const voiceDir = path.join(__dirname, '../public/uploads/voice_notes');
 if (!fs.existsSync(voiceDir)) {
@@ -9,7 +10,8 @@ if (!fs.existsSync(voiceDir)) {
 }
 
 /**
- * Converts text into natural human spoken voice note (.ogg / Opus) using Microsoft Edge Neural TTS.
+ * Converts text into natural human spoken voice note (.ogg / Opus) using Microsoft Edge Neural TTS
+ * and uploads the resulting audio directly to Cloudinary CDN for instant global streaming.
  * @param {string} text Raw text to speak
  * @param {string} lang Language code ('hi', 'en')
  * @param {string} gender Voice gender ('male' | 'female')
@@ -28,7 +30,6 @@ async function generateVoiceNote(text, lang = 'hi', gender = 'female', customAct
     if (!cleanText) return null;
 
     // 2. Select Microsoft Edge Neural Voice Model
-    // Supported actors: 'hi-IN-SwaraNeural', 'hi-IN-MadhurNeural', 'en-IN-NeerjaNeural', 'en-IN-PrabhatNeural', 'en-US-JennyNeural', 'en-US-GuyNeural'
     let voiceModel = customActor;
     if (!voiceModel) {
       voiceModel = gender === 'male' ? 'hi-IN-MadhurNeural' : 'hi-IN-SwaraNeural';
@@ -45,25 +46,23 @@ async function generateVoiceNote(text, lang = 'hi', gender = 'female', customAct
     const finalOggFilename = `voice_${timestamp}.ogg`;
     const finalOggPath = path.join(voiceDir, finalOggFilename);
 
-    // 4. Generate Neural MP3 Audio using ttsPromise
+    // 3. Generate Neural MP3 Audio
     await tts.ttsPromise(cleanText, tempMp3Path);
 
-    // 5. Convert MP3 to Opus OGG for WhatsApp Native PTT Waveform using fluent-ffmpeg
-    await new Promise((resolve, reject) => {
+    // 4. Convert MP3 to Opus OGG for WhatsApp Native PTT Waveform
+    await new Promise((resolve) => {
       ffmpeg(tempMp3Path)
         .audioCodec('libopus')
         .toFormat('ogg')
         .outputOptions(['-avoid_negative_ts make_zero', '-ac 1', '-ar 16000'])
         .on('end', () => {
-          // Clean temporary MP3
           if (fs.existsSync(tempMp3Path)) {
             fs.unlinkSync(tempMp3Path);
           }
           resolve();
         })
         .on('error', (err) => {
-          console.error('[TTS Service] FFmpeg conversion error:', err);
-          // Fallback to MP3 if opus encoder fails
+          console.error('[TTS Service] FFmpeg conversion warning, using MP3 fallback:', err.message);
           if (fs.existsSync(tempMp3Path)) {
             fs.renameSync(tempMp3Path, finalOggPath);
           }
@@ -72,12 +71,39 @@ async function generateVoiceNote(text, lang = 'hi', gender = 'female', customAct
         .save(finalOggPath);
     });
 
-    console.log(`[TTS Service] Generated Natural Neural Voice Note: ${finalOggFilename} using ${voiceModel}`);
+    // 5. Direct Upload to Cloudinary CDN
+    let cloudUrl = null;
+    let cloudPublicId = null;
+
+    if (cloudinary && process.env.CLOUDINARY_CLOUD_NAME) {
+      try {
+        const uploadResult = await cloudinary.uploader.upload(finalOggPath, {
+          folder: 'wolfai_voice_notes',
+          resource_type: 'video', // Cloudinary handles audio under video/raw resource_type
+          format: 'ogg'
+        });
+        cloudUrl = uploadResult.secure_url;
+        cloudPublicId = uploadResult.public_id;
+        console.log(`[TTS Service] Successfully uploaded voice note to Cloudinary CDN: ${cloudUrl}`);
+
+        // Cleanup local temporary OGG file after uploading to Cloudinary
+        if (fs.existsSync(finalOggPath)) {
+          fs.unlinkSync(finalOggPath);
+        }
+      } catch (cloudErr) {
+        console.error('[TTS Service] Cloudinary upload error, falling back to local URL:', cloudErr.message);
+      }
+    }
+
+    const fallbackPublicUrl = `/uploads/voice_notes/${finalOggFilename}`;
+    const publicUrl = cloudUrl || fallbackPublicUrl;
 
     return {
       filePath: finalOggPath,
       filename: finalOggFilename,
-      publicUrl: `/uploads/voice_notes/${finalOggFilename}`
+      publicUrl: publicUrl,
+      cloudUrl: cloudUrl,
+      cloudPublicId: cloudPublicId
     };
   } catch (error) {
     console.error('[TTS Service] Error generating Neural voice note:', error.message);
@@ -88,3 +114,4 @@ async function generateVoiceNote(text, lang = 'hi', gender = 'female', customAct
 module.exports = {
   generateVoiceNote
 };
+

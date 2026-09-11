@@ -7,6 +7,7 @@ const ActivityLog = require('../../models/ActivityLog');
 const { addToQueue } = require('./queueManager');
 const { transcribeAudio } = require('./transcriptionService');
 const { analyzeIntentAndTag } = require('../aiService');
+const { cloudinary } = require('../../config/cloudinary');
 
 async function handleIncomingMessages(messages, tenantId, sock, io) {
   for (const msg of messages) {
@@ -65,29 +66,65 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
     // Handle Image
     if (actualMsg.imageMessage) {
       try {
-        console.log(`[Tenant ${tenantId}] Intercepted Image (ViewOnce: ${isViewOnce})`);
+        console.log(`[Tenant ${tenantId}] Intercepted Image (ViewOnce: ${isViewOnce}). Uploading to Cloudinary CDN...`);
         const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: console, reuploadRequest: sock.updateMediaMessage });
-        const filename = `img_${Date.now()}.jpg`;
-        fs.writeFileSync(path.join(uploadsDir, filename), buffer);
-        mediaUrl = `/uploads/${filename}`;
+        
+        // Upload image buffer directly to Cloudinary
+        if (cloudinary && process.env.CLOUDINARY_CLOUD_NAME) {
+          const cloudResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { folder: 'whatsapp_incoming_images', resource_type: 'image' },
+              (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+              }
+            );
+            stream.end(buffer);
+          });
+
+          mediaUrl = cloudResult.secure_url;
+          console.log(`[Tenant ${tenantId}] Image uploaded to Cloudinary: ${mediaUrl}`);
+        } else {
+          // Local fallback if Cloudinary credentials missing
+          const filename = `img_${Date.now()}.jpg`;
+          fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+          mediaUrl = `/uploads/${filename}`;
+        }
+        
         mediaType = 'image';
         if (!textContent) textContent = '📷 Image';
       } catch (err) {
-        console.error('Error downloading image:', err);
+        console.error('Error downloading/uploading image:', err);
       }
     }
     // Handle Video
     else if (actualMsg.videoMessage) {
       try {
-        console.log(`[Tenant ${tenantId}] Intercepted Video (ViewOnce: ${isViewOnce})`);
+        console.log(`[Tenant ${tenantId}] Intercepted Video (ViewOnce: ${isViewOnce}). Uploading to Cloudinary...`);
         const buffer = await downloadMediaMessage(msg, 'buffer', {}, { logger: console, reuploadRequest: sock.updateMediaMessage });
-        const filename = `vid_${Date.now()}.mp4`;
-        fs.writeFileSync(path.join(uploadsDir, filename), buffer);
-        mediaUrl = `/uploads/${filename}`;
+        
+        if (cloudinary && process.env.CLOUDINARY_CLOUD_NAME) {
+          const cloudResult = await new Promise((resolve, reject) => {
+            const stream = cloudinary.uploader.upload_stream(
+              { folder: 'whatsapp_incoming_videos', resource_type: 'video' },
+              (error, result) => {
+                if (error) return reject(error);
+                resolve(result);
+              }
+            );
+            stream.end(buffer);
+          });
+          mediaUrl = cloudResult.secure_url;
+        } else {
+          const filename = `vid_${Date.now()}.mp4`;
+          fs.writeFileSync(path.join(uploadsDir, filename), buffer);
+          mediaUrl = `/uploads/${filename}`;
+        }
+
         mediaType = 'video';
         if (!textContent) textContent = '🎥 Video';
       } catch (err) {
-        console.error('Error downloading video:', err);
+        console.error('Error downloading/uploading video:', err);
       }
     }
     // Handle Audio / Voice Note
