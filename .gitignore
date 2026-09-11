@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# WhatsApp Baileys Auth Sessions (CRITICAL - DO NOT COMMIT AUTH TO GIT)
+auth_info_baileys/
+
+# Media Uploads & Temp Storage
+uploads/
+temp/
+
+# Environment files
+.env
+.env.local
+
+# Logs
+logs/
+*.log
+
+# Editor & OS files
+.DS_Store
+.vscode/
+.idea/
