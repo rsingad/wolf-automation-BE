@@ -42,6 +42,16 @@ const tenantSchema = new mongoose.Schema({
   isFrozen: { type: Boolean, default: false }, // Super Owner Account Freeze Status
   freezeReason: { type: String, default: "" }, // Freeze Reason (e.g., Free Demo Expired, Violation)
   freezeDate: { type: Date },
+  instagramConnected: { type: Boolean, default: false },
+  instagramUsername: { type: String, default: "" },
+  instagramFullName: { type: String, default: "" },
+  instagramProfilePic: { type: String, default: "" },
+  instagramBio: { type: String, default: "" },
+  instagramFollowersCount: { type: Number, default: 0 },
+  instagramFollowingCount: { type: Number, default: 0 },
+  instagramPostsCount: { type: Number, default: 0 },
+  instagramTargetUsers: { type: [String], default: [] }, // Specific targeted 1-2 usernames filter (lowercase)
+  instagramTargetOnly: { type: Boolean, default: true }, // Reply ONLY to targeted users
   wolfCoins: { type: Number, default: 500000 },
   wolfTokenBalance: { type: Number, default: 500000 }, // Default 500,000 Wolf Tokens allocated
   totalWolfTokensAllocated: { type: Number, default: 500000 }
