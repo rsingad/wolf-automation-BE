@@ -339,10 +339,32 @@ async function logoutSession(tenantId) {
   }
 }
 
+async function restoreAllActiveSessions(io) {
+  try {
+    const BaileysAuth = require('../../models/BaileysAuth');
+    const activeTenants = await BaileysAuth.distinct('tenantId');
+    console.log(`[ConnectionManager] Found ${activeTenants.length} persistent WhatsApp sessions in MongoDB to restore...`);
+    
+    for (const tenantId of activeTenants) {
+      if (tenantId && !hasActiveSession(tenantId)) {
+        console.log(`[ConnectionManager] Restoring persistent background session for tenant ${tenantId}...`);
+        setConnectingState(tenantId);
+        startWhatsAppSession(tenantId, io).catch(err => {
+          console.error(`[ConnectionManager] Failed restoring session for tenant ${tenantId}:`, err.message);
+        });
+      }
+    }
+  } catch (err) {
+    console.error(`[ConnectionManager] Error restoring active sessions:`, err);
+  }
+}
+
 module.exports = {
   startWhatsAppSession,
   getActiveSession,
   setConnectingState,
   hasActiveSession,
-  logoutSession
+  logoutSession,
+  restoreAllActiveSessions
 };
+

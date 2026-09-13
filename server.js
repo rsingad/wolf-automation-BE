@@ -66,6 +66,10 @@ mongoose.connect(process.env.MONGO_URI)
       const { startReminderCron } = require('./services/reminderCron');
       startReminderCron();
 
+      // Restore all existing WhatsApp sessions from MongoDB automatically on server startup/redeploy
+      const { restoreAllActiveSessions } = require('./services/whatsapp/connectionManager');
+      restoreAllActiveSessions(io);
+
       // Render Anti-Sleep 24/7 Keep-Alive Service (Prevents 50-sec Cold Starts)
       const axios = require('axios');
       setInterval(() => {
