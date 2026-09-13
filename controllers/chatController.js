@@ -37,7 +37,9 @@ exports.getCustomers = async (req, res) => {
 exports.getCustomerDetail = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const customer = await Customer.findById(customerId);
+    const { tenantId } = req.query;
+    const query = tenantId ? { _id: customerId, tenantId } : { _id: customerId };
+    const customer = await Customer.findOne(query);
     if (!customer) return res.status(404).json({ error: 'Customer not found' });
     res.status(200).json({ success: true, customer });
   } catch (error) {
@@ -50,8 +52,10 @@ exports.getCustomerDetail = async (req, res) => {
 exports.getMessages = async (req, res) => {
   try {
     const { customerId } = req.params;
+    const { tenantId } = req.query;
+    const query = tenantId ? { customerId, tenantId } : { customerId };
     
-    const messages = await Message.find({ customerId }).sort({ createdAt: 1 });
+    const messages = await Message.find(query).sort({ createdAt: 1 });
     
     res.status(200).json({ success: true, messages });
   } catch (error) {

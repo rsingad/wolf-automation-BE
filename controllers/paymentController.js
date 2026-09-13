@@ -100,13 +100,14 @@ exports.approvePaymentAdmin = async (req, res) => {
       await tenant.save();
     }
 
-    // Broadcast Real-Time Socket Updates
+    // Broadcast Real-Time Socket Updates (Scoped to Tenant Room)
     try {
       const { getIo } = require('../config/socket');
       const io = getIo();
-      if (io) {
-        io.emit('analytics_updated', { tenantId: payment.tenantId });
-        io.emit('payment_updated', { tenantId: payment.tenantId, paymentId: payment._id, status: 'approved' });
+      if (io && payment.tenantId) {
+        const tenantRoom = payment.tenantId.toString();
+        io.to(tenantRoom).emit('analytics_updated', { tenantId: payment.tenantId });
+        io.to(tenantRoom).emit('payment_updated', { tenantId: payment.tenantId, paymentId: payment._id, status: 'approved' });
       }
     } catch (e) {}
 
@@ -143,12 +144,12 @@ exports.rejectPaymentAdmin = async (req, res) => {
     payment.verifiedAt = new Date();
     await payment.save();
 
-    // Broadcast Real-Time Socket Updates
+    // Broadcast Real-Time Socket Updates (Scoped to Tenant Room)
     try {
       const { getIo } = require('../config/socket');
       const io = getIo();
-      if (io) {
-        io.emit('payment_updated', { tenantId: payment.tenantId, paymentId: payment._id, status: 'rejected' });
+      if (io && payment.tenantId) {
+        io.to(payment.tenantId.toString()).emit('payment_updated', { tenantId: payment.tenantId, paymentId: payment._id, status: 'rejected' });
       }
     } catch (e) {}
 

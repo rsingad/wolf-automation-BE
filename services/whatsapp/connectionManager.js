@@ -5,6 +5,8 @@ const path = require('path');
 const fs = require('fs');
 const { handleIncomingMessages } = require('./messageHandler');
 
+const useMongoDBAuthState = require('./mongoAuthState');
+
 // Maintain active sessions per tenant
 const activeSessions = new Map();
 
@@ -25,8 +27,7 @@ async function startWhatsAppSession(tenantId, io) {
       activeSessions.delete(tenantId);
     }
 
-    const authPath = path.join(__dirname, `../../auth_info_baileys/${tenantId}`);
-    const { state, saveCreds } = await useMultiFileAuthState(authPath);
+    const { state, saveCreds, clearState } = await useMongoDBAuthState(tenantId);
 
     // Fetch latest WhatsApp Web version to prevent 405 Protocol Rejection
     const { version } = await fetchLatestBaileysVersion().catch(() => ({ version: [2, 3000, 1015901307] }));
@@ -60,22 +61,14 @@ async function startWhatsAppSession(tenantId, io) {
         
         console.error(`[Tenant ${tenantId}] Connection closed! Reason code: ${statusCode}`);
 
-        // Kill all listeners on current socket FIRST to prevent saveCreds writing to deleted dir
+        // Kill all listeners on current socket FIRST to prevent saveCreds writing
         sock.ev?.removeAllListeners();
         activeSessions.delete(tenantId);
 
         // Handle Code 405 / 440 (Connection Replaced — Baileys v7 uses 440)
         if (statusCode === 405 || statusCode === 440 || statusCode === DisconnectReason.connectionReplaced) {
-          console.error(`[Tenant ${tenantId}] Connection replaced (Code ${statusCode}). Cleaning session & regenerating QR...`);
-          try {
-            if (fs.existsSync(authPath)) {
-              fs.rmSync(authPath, { recursive: true, force: true });
-            }
-            // Recreate empty dir so useMultiFileAuthState doesn't crash
-            fs.mkdirSync(authPath, { recursive: true });
-          } catch (fsErr) {
-            console.error(`[Tenant ${tenantId}] Error cleaning auth dir:`, fsErr);
-          }
+          console.error(`[Tenant ${tenantId}] Connection replaced (Code ${statusCode}). Clearing MongoDB session & regenerating QR...`);
+          await clearState();
           io.to(tenantId).emit('connection-status', { status: 'disconnected', reason: 'replaced' });
           io.to(tenantId).emit('console-log', 'Session cleaned. Generating fresh QR code...');
           
@@ -87,17 +80,10 @@ async function startWhatsAppSession(tenantId, io) {
 
         // Handle Code 401 (Logged Out / Corrupted Credentials)
         if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
-          console.error(`[Tenant ${tenantId}] Logged out (Code 401). Deleting auth directory...`);
-          try {
-            if (fs.existsSync(authPath)) {
-              fs.rmSync(authPath, { recursive: true, force: true });
-            }
-            fs.mkdirSync(authPath, { recursive: true });
-          } catch (fsErr) {
-            console.error(`[Tenant ${tenantId}] Error deleting auth dir:`, fsErr);
-          }
+          console.error(`[Tenant ${tenantId}] Logged out (Code 401). Clearing MongoDB auth keys...`);
+          await clearState();
           io.to(tenantId).emit('connection-status', { status: 'logged_out' });
-          io.to(tenantId).emit('console-log', 'Session permanently logged out. Directory cleaned. Please scan new QR.');
+          io.to(tenantId).emit('console-log', 'Session permanently logged out. MongoDB auth keys cleaned. Please scan new QR.');
           return;
         }
 
@@ -333,9 +319,30 @@ function hasActiveSession(tenantId) {
   return activeSessions.has(tenantId);
 }
 
+async function logoutSession(tenantId) {
+  try {
+    const sock = activeSessions.get(tenantId);
+    if (sock) {
+      try {
+        if (typeof sock.logout === 'function') await sock.logout();
+        sock.ev?.removeAllListeners();
+      } catch (e) {}
+      activeSessions.delete(tenantId);
+    }
+    const BaileysAuth = require('../../models/BaileysAuth');
+    await BaileysAuth.deleteMany({ tenantId: tenantId.toString() });
+    console.log(`[ConnectionManager] Session logged out and MongoDB keys cleaned for tenant ${tenantId}`);
+    return true;
+  } catch (err) {
+    console.error(`[ConnectionManager] Error logging out tenant ${tenantId}:`, err);
+    return false;
+  }
+}
+
 module.exports = {
   startWhatsAppSession,
   getActiveSession,
   setConnectingState,
-  hasActiveSession
+  hasActiveSession,
+  logoutSession
 };

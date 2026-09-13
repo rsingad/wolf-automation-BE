@@ -49,7 +49,7 @@ exports.createAppointment = async (req, res) => {
 exports.updateStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, tenantId } = req.body;
 
     if (!VALID_STATUSES.includes(status)) {
       return res.status(400).json({
@@ -57,8 +57,9 @@ exports.updateStatus = async (req, res) => {
       });
     }
 
-    const appointment = await Appointment.findByIdAndUpdate(
-      id,
+    const query = tenantId ? { _id: id, tenantId } : { _id: id };
+    const appointment = await Appointment.findOneAndUpdate(
+      query,
       { status },
       { returnDocument: 'after' }
     );
@@ -76,7 +77,7 @@ exports.updateStatus = async (req, res) => {
 exports.rescheduleAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    const { date, time } = req.body;
+    const { date, time, tenantId } = req.body;
 
     if (!date || !time) {
       return res.status(400).json({ error: 'date and time are required for rescheduling' });
@@ -84,8 +85,9 @@ exports.rescheduleAppointment = async (req, res) => {
 
     const bookingDate = new Date(`${date}T${time}:00`);
 
-    const appointment = await Appointment.findByIdAndUpdate(
-      id,
+    const query = tenantId ? { _id: id, tenantId } : { _id: id };
+    const appointment = await Appointment.findOneAndUpdate(
+      query,
       { date, time, bookingDate, status: 'CONFIRMED', reminderSent: false },
       { returnDocument: 'after' }
     );
@@ -103,7 +105,9 @@ exports.rescheduleAppointment = async (req, res) => {
 exports.deleteAppointment = async (req, res) => {
   try {
     const { id } = req.params;
-    await Appointment.findByIdAndDelete(id);
+    const { tenantId } = req.query;
+    const query = tenantId ? { _id: id, tenantId } : { _id: id };
+    await Appointment.findOneAndDelete(query);
     res.status(200).json({ success: true, message: 'Appointment deleted' });
   } catch (error) {
     console.error('[Appointments] Error deleting:', error);

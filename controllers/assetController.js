@@ -41,7 +41,9 @@ exports.getAssets = async (req, res) => {
 exports.deleteAsset = async (req, res) => {
   try {
     const { assetId } = req.params;
-    const asset = await MediaAsset.findById(assetId);
+    const { tenantId } = req.query;
+    const query = tenantId ? { _id: assetId, tenantId } : { _id: assetId };
+    const asset = await MediaAsset.findOne(query);
     
     if (!asset) {
       return res.status(404).json({ error: 'Asset not found' });
@@ -53,7 +55,7 @@ exports.deleteAsset = async (req, res) => {
       fs.unlinkSync(filePath);
     }
 
-    await MediaAsset.findByIdAndDelete(assetId);
+    await MediaAsset.findOneAndDelete(query);
 
     res.status(200).json({ success: true, message: 'Asset deleted' });
   } catch (error) {
