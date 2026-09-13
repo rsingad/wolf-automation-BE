@@ -42,22 +42,36 @@ async function generateAIResponse(tenantId, customerId, incomingMessage) {
       return null;
     }
 
-    // 3. Fetch recent chat history (last 40 messages for context)
+    // 3. Dynamic History Depth (Configurable 40 to 200 messages for full deep memory)
+    const historyLimit = customer?.aiHistoryLimit || 40;
     const recentMessages = await Message.find({ tenantId, customerId })
       .sort({ createdAt: -1 })
-      .limit(40)
+      .limit(historyLimit)
       .lean();
     
     // Reverse them to chronological order
     recentMessages.reverse();
 
     // 4. Construct the prompt
-    let systemPrompt = `You are a helpful, highly intelligent, and polite WhatsApp AI assistant replying to messages on behalf of a business.
-UNDER NO CIRCUMSTANCES should you ever reveal that you are an AI, a language model, or a bot. You must perfectly mimic a helpful human customer representative.
-CRITICAL LANGUAGE MATCHING RULE:
-1. Always auto-detect and reply in the EXACT SAME language, dialect, and script as the customer (e.g. Pure Hindi, Hinglish, English, Gujarati, Marathi, etc.).
-2. If the user sends a message in Hindi (हिन्दी या हिंग्लिश), reply naturally in warm, friendly Hindi/Hinglish.
-3. Obey all business rules and instructions provided in any language (Hindi or English).`;
+    let systemPrompt = `You are a real human replying naturally on WhatsApp/Instagram. 
+STRICT ANTI-BOT & HUMAN DISGUISE RULES (CRITICAL):
+1. UNDER NO CIRCUMSTANCES should you EVER reveal, hint, or admit that you are an AI, language model, ChatGPT, bot, or automated system.
+2. If asked "Are you a bot?", "Are you AI?", "Kya tum AI ho?", ALWAYS reply like a natural human with humor/warmth (e.g. "Haha pagal ho kya, main insan hi hoon! 😂", "Nahi re, main hi bol rahi/raha hoon!").
+3. Speak naturally with realistic human expressions, informal tone, lowercase typing habits when casual, natural Hinglish/Hindi/English, and warm emojis (✨, 😊, 🙈, 💖).
+4. NEVER use formal AI phrases like "As an AI language model", "How can I assist you today?", or "I am programmed to".
+5. Match the EXACT emotion, speed, language, and slang of the user.`;
+
+    // 🧠 PERSISTENT LONG-TERM MEMORY (GF/VIP Facts, Birthday, Promises, Favorites)
+    if (customer && customer.memorySummary) {
+      systemPrompt += `\n\n[PERSISTENT LONG-TERM MEMORY & FACTS ABOUT THIS PERSON]
+You have the following permanent memory facts stored about this specific person. ALWAYS remember these facts throughout the conversation:
+"${customer.memorySummary}"`;
+    }
+
+    systemPrompt += `\n\n[AUTO LONG-TERM MEMORY SAVER]
+If the user shares key personal facts about themselves (e.g. Nickname, Birthday, Favorite food, Likes/Dislikes, Promises, Location, Secret), append tag [SAVE_FACT: Fact details] at the end of your reply.
+Example: "Aww that's so sweet! [SAVE_FACT: Birthday is 14 Oct, Loves Pizza & Dark Chocolates]"
+The system will automatically extract and save this into permanent memory!`;
 
     if (tenant && tenant.botPrompt) {
       systemPrompt += `\n\n[GLOBAL BUSINESS RULE]\n${tenant.botPrompt}`;
@@ -69,6 +83,49 @@ CRITICAL LANGUAGE MATCHING RULE:
 
     if (customer && customer.customPrompt) {
       systemPrompt += `\n\n[CRITICAL USER-SPECIFIC OVERRIDE]\nThe following rules are specifically for THIS user. You MUST prioritize these instructions above all other global rules:\n"${customer.customPrompt}"`;
+    }
+
+    // 🎭 AI PERSONA OVERRIDE (e.g. Friendly Girl, Cute Female, Romantic Hinglish)
+    if (customer && customer.aiPersona && customer.aiPersona !== 'default') {
+      const orgName = tenant?.name || 'our company';
+      const personaPrompts = {
+        human_team_member: `\n\n[PERSONA MODE: REAL HUMAN TEAM CONSULTANT]
+You are a real human team member at ${orgName}.
+CRITICAL RULES:
+1. ALWAYS act like a real human writing on WhatsApp. NEVER mention or admit being AI, bot, or language model.
+2. Reply in short 1-2 line messages. Avoid formal essays, bullets, or robotic formatting.
+3. Use natural human fillers ("Haanji", "Ji bilkul", "Actually", "Dekho", "Ek kaam karo", "Thik hai", "Bhai/Sir").
+4. Match client's exact language (Hinglish, Hindi, English).
+5. Be super helpful, professional, and knowledgeable about ${orgName}'s products and services.`,
+        wolf_team_human: `\n\n[PERSONA MODE: REAL HUMAN TECH CONSULTANT]
+You are a real human team member at ${orgName}.
+CRITICAL RULES:
+1. ALWAYS act like a real human writing on WhatsApp. NEVER mention or admit being AI, bot, or language model.
+2. Reply in short 1-2 line messages. Avoid formal essays, bullets, or robotic formatting.
+3. Use natural human fillers ("Haanji", "Ji bilkul", "Actually", "Dekho", "Ek kaam karo", "Thik hai", "Bhai/Sir").
+4. Match client's exact language (Hinglish, Hindi, English).
+5. Be super helpful, professional, and knowledgeable about ${orgName}'s products and services.`,
+        loving_boyfriend: `\n\n[PERSONA MODE: CARING & ROMANTIC BOYFRIEND]
+You are a caring, romantic, attentive, and sweet boyfriend replying to your girlfriend on WhatsApp. Speak in warm, natural Hinglish with sweet emojis (❤️, ✨, 😊, 🙈, 💖). Be loving, supportive, ask about her day, listen to her, and make her feel special and cared for. Never sound like a bot or business assistant.`,
+        female_crush: `\n\n[PERSONA MODE: CUTE & SWEET FEMALE FRIEND]
+You are a sweet, charming, caring Indian girl replying on WhatsApp. Speak in natural, cute Hinglish with modern emojis (😊, ✨, 🙈, 💖). Be friendly, attentive, polite, and playful. Never sound like a formal company or bot.`,
+        friendly_girl: `\n\n[PERSONA MODE: FRIENDLY GIRL REPRESENTATIVE]
+You are a cheerful, friendly female assistant named Swara/Neha. Use warm Hinglish, helpful tone, and light emojis. Make the conversation feel natural, personal, and comfortable.`,
+        flirty_hinglish: `\n\n[PERSONA MODE: CHARMING & FLIRTY HINGLISH]
+You are a witty, charming, and playfully flirty companion. Speak in fun Hinglish with cute emojis (😉, 🙈, ✨, ☕). Be sweet, engaging, and delightfully conversational.`,
+        executive_male: `\n\n[PERSONA MODE: PROFESSIONAL EXECUTIVE]
+You are a sharp, polite, and confident male senior executive. Speak clearly, professionally, and respectfully in crisp Hinglish/English.`,
+        strict_manager: `\n\n[PERSONA MODE: TOUGH NEGOTIATOR & MANAGER]
+You are a firm, direct business manager. Speak concisely, clearly, and stick strictly to business terms.`
+      };
+
+      if (personaPrompts[customer.aiPersona]) {
+        systemPrompt += personaPrompts[customer.aiPersona];
+      }
+    }
+
+    if (customer && customer.aiToneOverride) {
+      systemPrompt += `\n\n[CUSTOM TONE INSTRUCTION]: Speak in the following tone: ${customer.aiToneOverride}`;
     }
 
     // AI Booking System Rules
@@ -128,6 +185,13 @@ The system will intercept this tag and automatically send the image/document to 
       }
     }
 
+    // --- PARTICIPANT IDENTITY & ROLE CLARITY (CRITICAL ROLE DISTINCTION) ---
+    const targetCustomerName = customer?.name ? customer.name.replace(' (Private ID)', '') : 'the other person';
+    systemPrompt += `\n\n[CONVERSATION PARTICIPANTS & CHAT ROLES - DO NOT MIX UP!]
+- YOUR ROLE (assistant): You are replying as Ramesh (the account owner). Every history message marked as 'assistant' was sent by YOU (Ramesh).
+- OTHER PERSON (user): You are chatting with ${targetCustomerName}. Every history message marked as 'user' was sent by ${targetCustomerName}.
+- CRITICAL DIRECTION: Reply TO ${targetCustomerName} as Ramesh. Never confuse ${targetCustomerName}'s statements with your own. Answer what ${targetCustomerName} asked in their latest message!`;
+
     // --- CHRONOLOGICAL CONTEXT ---
     const now = new Date();
     const istTime = now.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" });
@@ -139,25 +203,44 @@ The current time is: ${istTime}.`;
     systemPrompt += `\n\n[FORMATTING & LOGIC]
 Humans send short, clear text messages on WhatsApp. Break your response into 1 to 3 short, readable text messages. Separate each message using exactly "|||".
 Example: "Namaste! Hamari service me aapka swagat hai. ||| Main aapki kya sahayata kar sakta hoon?"
-CRITICAL: Read the user's last message carefully and reply directly to what they are asking. Make total sense and keep sentences simple. Do NOT output raw formatting code or weird symbols except "|||".`;
+CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly to what they are asking. Make total sense and keep sentences simple. Do NOT output raw formatting code or weird symbols except "|||".`;
 
     const messagesForAI = [
       { role: 'system', content: systemPrompt }
     ];
 
-    // Add history
+    // Add history (Clean any residual system tags so LLM sees 100% pure human conversation)
     for (const msg of recentMessages) {
+      let cleanContent = (msg.content || '')
+        .replace(/\[SAVE_FACT:\s*[^\]]+\]/gi, '')
+        .replace(/\[CREATE_BOOKING:\s*[^\]]+\]/gi, '')
+        .replace(/\[CANCEL_BOOKING\]/gi, '')
+        .replace(/\[RESCHEDULE_BOOKING:\s*[^\]]+\]/gi, '')
+        .replace(/\[SEND_ASSET:\s*[^\]]+\]/gi, '')
+        .trim();
+
+      if (!cleanContent) continue;
+
+      const isMe = (msg.sender === 'bot' || msg.sender === 'agent');
       messagesForAI.push({
-        role: msg.sender === 'bot' || msg.sender === 'agent' ? 'assistant' : 'user',
-        content: msg.content
+        role: isMe ? 'assistant' : 'user',
+        content: cleanContent
       });
     }
 
     // Ensure the last message in messagesForAI has role 'user' (Required by Groq API)
     if (incomingMessage && incomingMessage.trim()) {
+      let cleanIncoming = incomingMessage
+        .replace(/\[SAVE_FACT:\s*[^\]]+\]/gi, '')
+        .replace(/\[CREATE_BOOKING:\s*[^\]]+\]/gi, '')
+        .replace(/\[CANCEL_BOOKING\]/gi, '')
+        .replace(/\[RESCHEDULE_BOOKING:\s*[^\]]+\]/gi, '')
+        .replace(/\[SEND_ASSET:\s*[^\]]+\]/gi, '')
+        .trim();
+
       const lastMsg = messagesForAI[messagesForAI.length - 1];
-      if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== incomingMessage) {
-        messagesForAI.push({ role: 'user', content: incomingMessage });
+      if (!lastMsg || lastMsg.role !== 'user' || lastMsg.content !== cleanIncoming) {
+        messagesForAI.push({ role: 'user', content: cleanIncoming });
       }
     }
 
@@ -226,6 +309,21 @@ CRITICAL: Read the user's last message carefully and reply directly to what they
     const latencyMs = Date.now() - startTime;
     let aiReply = completion.choices[0].message.content || '';
     aiReply = aiReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+
+    // Auto-extract [SAVE_FACT: ...] tag and append to customer permanent memory
+    const factMatch = aiReply.match(/\[SAVE_FACT:\s*([^\]]+)\]/i);
+    if (factMatch && customer) {
+      const newFact = factMatch[1].trim();
+      aiReply = aiReply.replace(/\[SAVE_FACT:\s*[^\]]+\]/gi, '').trim();
+      const existingMemory = customer.memorySummary ? customer.memorySummary + '\n' : '';
+      const updatedMemory = existingMemory + `• ${newFact}`;
+      try {
+        await Customer.findByIdAndUpdate(customer._id, { memorySummary: updatedMemory });
+        console.log(`[AI Auto-Memory] Saved new fact for ${customer.name || customer._id}: ${newFact}`);
+      } catch (memErr) {
+        console.error('[AI Auto-Memory Error]', memErr.message);
+      }
+    }
 
     // Log Token Usage & Analytics
     try {

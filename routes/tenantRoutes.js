@@ -13,5 +13,6 @@ router.post('/reward-coins/:tenantId', tenantController.rewardCoins);
 router.get('/admin/organizations', tenantController.getAllOrganizationsAdmin);
 router.post('/admin/manual-grant', tenantController.manualCoinGrantAdmin);
 router.post('/admin/toggle-freeze', tenantController.toggleFreezeTenantAdmin);
+router.post('/admin/update-level', tenantController.updateAccountLevelAdmin);
 
 module.exports = router;

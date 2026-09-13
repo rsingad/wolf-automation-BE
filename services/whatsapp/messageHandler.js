@@ -295,6 +295,14 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           mediaType,
           isViewOnce
         });
+        // Smart Interceptor (Idea 2): Auto-pause AI if user manually types & sends a message
+        if (customer && customer.autoPauseOnManual !== false && !customer.aiPaused) {
+          customer.aiPaused = true;
+          await customer.save();
+          console.log(`[Smart Interceptor] 🛑 Auto-paused AI for ${customer.name || customer._id} because manual message was sent.`);
+          if (io) io.to(tenantId).emit('customer-updated', customer);
+        }
+
         // Show it on the dashboard!
         if (io) io.to(tenantId).emit('new-message', { customerId: customer._id, message: phoneMsg });
       }

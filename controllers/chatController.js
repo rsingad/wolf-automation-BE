@@ -105,6 +105,17 @@ exports.sendManualMessage = async (req, res) => {
       messageId: sentMsg.key.id
     });
 
+    // Auto-Pause AI when user manually sends message from Web App
+    if (customer.autoPauseOnManual !== false && !customer.aiPaused) {
+      customer.aiPaused = true;
+      await customer.save();
+      try {
+        const { getIo } = require('../config/socket');
+        const io = getIo();
+        if (io) io.to(tenantId).emit('customer-updated', customer);
+      } catch (sErr) {}
+    }
+
     res.status(200).json({ success: true, message: outboundMsg });
   } catch (error) {
     console.error('Error sending manual message:', error);
@@ -168,21 +179,31 @@ exports.toggleAllAiPause = async (req, res) => {
   }
 };
 
-// Phase 9: Update Custom Prompt
+// Phase 9: Update Custom Prompt, AI Persona, Context Depth & Long-Term Memory
 exports.updateCustomPrompt = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { customPrompt } = req.body;
+    const { customPrompt, aiPersona, aiVoiceGenderOverride, aiToneOverride, aiHistoryLimit, memorySummary } = req.body;
+
+    const updateFields = {};
+    if (customPrompt !== undefined) updateFields.customPrompt = customPrompt;
+    if (aiPersona !== undefined) updateFields.aiPersona = aiPersona;
+    if (aiVoiceGenderOverride !== undefined) updateFields.aiVoiceGenderOverride = aiVoiceGenderOverride;
+    if (aiToneOverride !== undefined) updateFields.aiToneOverride = aiToneOverride;
+    if (aiHistoryLimit !== undefined) updateFields.aiHistoryLimit = Number(aiHistoryLimit);
+    if (memorySummary !== undefined) updateFields.memorySummary = memorySummary;
+    if (autoPauseOnManual !== undefined) updateFields.autoPauseOnManual = Boolean(autoPauseOnManual);
+    if (req.body.isBlacklisted !== undefined) updateFields.isBlacklisted = Boolean(req.body.isBlacklisted);
 
     const customer = await Customer.findByIdAndUpdate(
       customerId, 
-      { customPrompt }, 
+      updateFields, 
       { new: true }
     );
 
     res.status(200).json({ success: true, customer });
   } catch (error) {
-    console.error('Error updating custom prompt:', error);
+    console.error('Error updating custom prompt & persona:', error);
     res.status(500).json({ error: 'Server error' });
   }
 };
@@ -228,5 +249,29 @@ exports.syncProfile = async (req, res) => {
     res.status(200).json({ success: true, customer });
   } catch (error) {
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// Generate Icebreaker / Starter Conversation Message using AI
+exports.generateStarterMessage = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+    const customer = await Customer.findById(customerId);
+    if (!customer) return res.status(404).json({ error: 'Customer not found' });
+
+    const tenantId = customer.tenantId;
+    const { generateAIResponse } = require('../services/aiService');
+
+    const promptText = `[STARTER MESSAGE GENERATOR TASK]
+Generate ONE single, ultra-creative, witty, and natural conversation starter message to open a chat with ${customer.name || 'this contact'} on WhatsApp.
+Match their persona rules and specific custom prompt guidelines. Speak in natural Hinglish with 1-2 cool emojis. Keep it 1-2 short sentences. Do NOT output any preamble or quotation marks.`;
+
+    const rawReply = await generateAIResponse(tenantId, customerId, promptText);
+    let starterMessage = rawReply ? rawReply.replace(/\|\|\|/g, ' ').replace(/\"/g, '').trim() : "Hey! What's up? ✨";
+    
+    res.status(200).json({ success: true, starterMessage });
+  } catch (error) {
+    console.error('Failed to generate starter message', error);
+    res.status(500).json({ error: 'Failed to generate starter message' });
   }
 };

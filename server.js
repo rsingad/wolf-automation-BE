@@ -65,6 +65,15 @@ mongoose.connect(process.env.MONGO_URI)
       // Start Appointment Reminder Cron
       const { startReminderCron } = require('./services/reminderCron');
       startReminderCron();
+
+      // Render Anti-Sleep 24/7 Keep-Alive Service (Prevents 50-sec Cold Starts)
+      const axios = require('axios');
+      setInterval(() => {
+        const renderUrl = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
+        axios.get(`${renderUrl}/`)
+          .then(() => console.log(`[Keep-Alive Ping] Render server kept active at ${new Date().toISOString()}`))
+          .catch(() => {});
+      }, 9 * 60 * 1000); // Self-ping every 9 minutes
     });
 
     httpServer.on('error', (err) => {

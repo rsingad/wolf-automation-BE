@@ -6,6 +6,21 @@ const connectionManager = require('./connectionManager');
 // Helper for delay
 const randomDelay = (min, max) => new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1) + min)));
 
+function getCleanName(rawName) {
+  if (!rawName || typeof rawName !== 'string') return 'Boss';
+  let trimmed = rawName.trim();
+  const junkPattern = /^(test|unknown|customer|client|contact|no name|noname|admin|user|temp|demo|xyz|abc|[0-9\+\-\s\.\_]+)$/i;
+  
+  if (trimmed.length < 3 || junkPattern.test(trimmed) || /\d{5,}/.test(trimmed)) {
+    return 'Boss';
+  }
+  
+  const clean = trimmed.replace(/[^\w\s\u0900-\u097F]/gi, '').trim();
+  if (!clean || clean.length < 2) return 'Boss';
+  
+  return clean;
+}
+
 // Track which tenants have a running processor
 const activeProcessors = new Set();
 
@@ -17,13 +32,26 @@ async function startCampaignProcessor(tenantId) {
 
   try {
     while (true) {
-      // Find a running campaign for this tenant
-      const campaign = await Campaign.findOne({ tenantId, status: 'running' });
+      // 1. Find the currently running campaign (oldest first)
+      let campaign = await Campaign.findOne({ tenantId, status: 'running' }).sort({ createdAt: 1 });
       
+      // 2. If no running campaign, check for the next pending (queued) campaign
       if (!campaign) {
-        // No running campaigns, exit the loop
+        campaign = await Campaign.findOne({ tenantId, status: 'pending' }).sort({ createdAt: 1 });
+        if (campaign) {
+          campaign.status = 'running';
+          await campaign.save();
+          console.log(`[Campaign Processor] Promoted queued campaign "${campaign.name}" (${campaign._id}) to RUNNING!`);
+          const { getIo } = require('../../config/socket');
+          const io = getIo();
+          if (io) io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+        }
+      }
+
+      if (!campaign) {
+        // No running or pending campaigns, exit the loop
         activeProcessors.delete(tenantId);
-        console.log(`[Campaign Processor] Stopped for tenant ${tenantId} (No running campaigns)`);
+        console.log(`[Campaign Processor] Stopped for tenant ${tenantId} (No running/pending campaigns in queue)`);
         return;
       }
 
@@ -77,6 +105,28 @@ async function startCampaignProcessor(tenantId) {
       }
       const remoteJid = `${phone}@s.whatsapp.net`;
 
+      // Check if contact is blacklisted by user (Excluded from Campaigns)
+      const Customer = require('../../models/Customer');
+      const targetCustomer = await Customer.findOne({ 
+        tenantId, 
+        $or: [{ whatsappNumber: remoteJid }, { whatsappNumber: `${phone}@s.whatsapp.net` }, { whatsappNumber: phone }] 
+      });
+
+      if (targetCustomer && targetCustomer.isBlacklisted) {
+        console.log(`[Campaign] 🚫 Number ${phone} is BLACKLISTED. Skipping broadcast.`);
+        campaign.contacts[pendingContactIndex].status = 'ignored';
+        campaign.contacts[pendingContactIndex].error = 'Blacklisted / Excluded from campaigns';
+        campaign.progress.ignored = (campaign.progress.ignored || 0) + 1;
+        await campaign.save();
+
+        const { getIo } = require('../../config/socket');
+        const io = getIo();
+        if (io) {
+          io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+        }
+        continue;
+      }
+
       // Check if number exists on WhatsApp
       let whatsappCheck = null;
       try {
@@ -103,17 +153,20 @@ async function startCampaignProcessor(tenantId) {
         continue; // Skip to next contact immediately
       }
 
-      // Remove manual Spintax parser. We will use Groq AI to generate a unique message.
-      const { OpenAI } = require('openai');
-      const openai = new OpenAI({
-        apiKey: process.env.GROQ_API_KEY,
-        baseURL: 'https://api.groq.com/openai/v1',
-      });
+      // Fallback: Default to raw campaign template with clean name substitution in case Groq AI fails
+      const cleanName = getCleanName(contact.name);
+      let messageText = campaign.template.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
 
-      // Dynamically generate message using AI
-      let messageText = "Hello";
       try {
-        const aiPrompt = `You are an expert copywriter sending a WhatsApp message to a customer named "${contact.name || 'Friend'}".
+        const { OpenAI } = require('openai');
+        const openai = new OpenAI({
+          apiKey: process.env.GROQ_API_KEY,
+          baseURL: 'https://api.groq.com/openai/v1',
+        });
+
+        const aiPrompt = `You are an expert copywriter sending a WhatsApp message to a customer.
+Customer Name Context: "${cleanName}". If the name is "Boss" or generic, address them naturally as "Boss", "Sir", or "Ji", or omit addressing them by name if awkward. DO NOT use weird/junk names, single letters, numbers, or abusive placeholders.
+
 Your ONLY task is to write a single, short, completely unique WhatsApp message based on this goal/instruction:
 "${campaign.template}"
 
@@ -128,9 +181,28 @@ Rules:
           messages: [{ role: 'user', content: aiPrompt }],
           temperature: 0.9, // Higher temp for more variety
         });
-        messageText = (completion.choices[0].message.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        const aiRes = (completion.choices[0].message.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+        if (aiRes && aiRes.length > 5) {
+          messageText = aiRes;
+        }
+      } catch (aiErr) {
+        console.error(`[Campaign] 🚨 AI API Error for ${phone}: ${aiErr.message}. AUTO-PAUSING CAMPAIGN!`);
+        campaign.status = 'paused';
+        campaign.pauseReason = `AI Model Error: ${aiErr.message}`;
+        await campaign.save();
         
-        console.log(`[Campaign] Generated unique message for ${phone}:\n${messageText}`);
+        const { getIo } = require('../../config/socket');
+        const io = getIo();
+        if (io) {
+          io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+        }
+        
+        activeProcessors.delete(tenantId);
+        return; // Pause execution immediately!
+      }
+
+      try {
+        console.log(`[Campaign] Dispatching message for ${phone}:\n${messageText}`);
         
         // Anti-ban: Presence
         await sock.sendPresenceUpdate('available');

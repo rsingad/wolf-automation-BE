@@ -137,6 +137,13 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           console.log(`[Tenant ${tenantId}] 👻 Ghost Mode Active: Skipped reading message from ${remoteJid}`);
         }
 
+        // 🤫 IGNORE PREFIX FILTER (Idea 1): Skip AI if message starts with // or # or [test] or [skip]
+        const trimmedText = (textContent || '').trim();
+        if (trimmedText.startsWith('//') || trimmedText.startsWith('#') || trimmedText.toLowerCase().startsWith('[test]') || trimmedText.toLowerCase().startsWith('[skip]')) {
+          console.log(`[Queue] 🤫 Message starts with ignore prefix ('//' or '#'). Skipping AI auto-reply.`);
+          continue;
+        }
+
         // Check if AI Auto-Reply is paused globally or for this customer (Human-in-the-loop)
         if (tenant?.aiAutoReplyDisabled || customer.aiPaused) {
           console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply is OFF (Global: ${tenant?.aiAutoReplyDisabled}, Customer: ${customer.aiPaused}). Skipping AI auto-reply.`);

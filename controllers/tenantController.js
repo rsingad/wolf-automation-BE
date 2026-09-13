@@ -427,3 +427,56 @@ exports.toggleFreezeTenantAdmin = async (req, res) => {
   }
 };
 
+// Wolf Master Command Center: Update Tenant Account Limit Level (1-4: Warmup, Growth, Pro, Enterprise)
+exports.updateAccountLevelAdmin = async (req, res) => {
+  try {
+    const { targetTenantId, accountLevel } = req.body;
+
+    if (!targetTenantId || !accountLevel || typeof accountLevel !== 'number') {
+      return res.status(400).json({ error: 'Target tenant ID and valid level (1-4) required' });
+    }
+
+    if (accountLevel < 1 || accountLevel > 4) {
+      return res.status(400).json({ error: 'Level must be between 1 (Warmup) and 4 (Enterprise/Unlimited)' });
+    }
+
+    const tenant = await Tenant.findById(targetTenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    tenant.accountLevel = accountLevel;
+    await tenant.save();
+
+    const levelLabels = {
+      1: 'Level 1 (Warmup - 50/day)',
+      2: 'Level 2 (Growth - 500/day)',
+      3: 'Level 3 (Pro - 2,500/day)',
+      4: 'Level 4 (Enterprise - UNLIMITED 🚀)'
+    };
+
+    // Broadcast socket update
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) {
+        io.emit('tenant_level_updated', {
+          tenantId: tenant._id,
+          accountLevel: tenant.accountLevel,
+          levelLabel: levelLabels[accountLevel]
+        });
+        io.emit('analytics_updated', { tenantId: tenant._id });
+      }
+    } catch (e) {}
+
+    res.status(200).json({
+      success: true,
+      accountLevel: tenant.accountLevel,
+      message: `🚀 Success! Updated ${tenant.name}'s limit tier to ${levelLabels[accountLevel]}`
+    });
+  } catch (error) {
+    console.error('Error updating tenant level:', error);
+    res.status(500).json({ error: 'Failed to update account level' });
+  }
+};
+

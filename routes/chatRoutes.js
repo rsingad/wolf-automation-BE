@@ -12,5 +12,6 @@ router.put('/customer/:customerId/pause', chatController.toggleAiPause);
 router.put('/pause-all/:tenantId', chatController.toggleAllAiPause);
 router.put('/customer/:customerId/prompt', chatController.updateCustomPrompt);
 router.post('/customer/:customerId/sync-profile', chatController.syncProfile);
+router.post('/customer/:customerId/generate-starter', chatController.generateStarterMessage);
 
 module.exports = router;

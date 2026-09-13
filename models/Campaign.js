@@ -18,6 +18,7 @@ const campaignSchema = new mongoose.Schema({
     delayHours: { type: Number, required: true }
   }],
   status: { type: String, enum: ['pending', 'running', 'paused', 'completed'], default: 'pending' },
+  pauseReason: { type: String, default: '' },
   contacts: [contactSchema],
   progress: {
     total: { type: Number, default: 0 },

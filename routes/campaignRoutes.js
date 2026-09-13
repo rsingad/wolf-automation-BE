@@ -6,5 +6,6 @@ router.post('/create/:tenantId', campaignController.createCampaign);
 router.get('/list/:tenantId', campaignController.getCampaigns);
 router.put('/pause/:campaignId', campaignController.pauseCampaign);
 router.put('/resume/:campaignId', campaignController.resumeCampaign);
+router.put('/retry-failed/:campaignId', campaignController.retryFailedContacts);
 
 module.exports = router;
