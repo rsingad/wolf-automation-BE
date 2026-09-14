@@ -406,8 +406,39 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     return aiReply;
 
   } catch (error) {
-    console.error('[AI Service] Error generating response:', error.message);
-    return "Ek second ji, main check karke batata hoon! 😊";
+    const errMsg = error.message || 'Unknown error';
+    console.error('[AI Service] Error generating response:', errMsg);
+
+    // Record Exact Diagnostic Error Reason in Customer Record for UI Live Tracker Badge
+    if (customer && customer._id) {
+      try {
+        let errorState = 'ERROR_SERVER_OUTAGE';
+        let formattedReason = `⚠️ Error: ${errMsg.slice(0, 60)}`;
+
+        if (errMsg.includes('rate limit') || errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('tokens')) {
+          errorState = 'ERROR_API_RATE_LIMIT';
+          formattedReason = '🚨 Groq AI API Rate Limit / Quota Exceeded (Tokens Exhausted)';
+        } else if (errMsg.includes('validation') || errMsg.includes('Mongo') || errMsg.includes('CastError')) {
+          errorState = 'ERROR_DB_FAILURE';
+          formattedReason = `⚠️ Database Schema Error: ${errMsg.slice(0, 50)}`;
+        }
+
+        const updatedCust = await Customer.findByIdAndUpdate(customer._id, {
+          aiStatusState: errorState,
+          lastResponseReason: formattedReason
+        }, { returnDocument: 'after' });
+
+        if (tenant?._id) {
+          const { getIo } = require('../config/socket');
+          const io = getIo();
+          if (io) io.to(tenant._id.toString()).emit('customer-updated', updatedCust);
+        }
+      } catch (errDb) {
+        console.error('[AI Service Error Tracker Save Failed]', errDb.message);
+      }
+    }
+
+    return null; // Return null so queueManager skips sending dummy fallback text on error
   }
 }
 

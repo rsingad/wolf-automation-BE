@@ -20,7 +20,7 @@ const customerSchema = new mongoose.Schema({
   memorySummary: { type: String, default: '' }, // Persistent long-term memory facts (e.g. GF likes, birthdays, promises)
   aiPaused: { type: Boolean, default: false }, // True if Human-in-the-loop takeover
   aiPausedUntil: { type: Date }, // 5-Minute Smart Auto-Resume Timer
-  aiStatusState: { type: String, enum: ['ACTIVE_AI', 'PAUSED_MANUAL', 'SKIPPED_PREFIX', 'SKIPPED_WARMUP_LIMIT', 'SKIPPED_OUT_OF_HOURS', 'SKIPPED_GLOBAL_OFF', 'GENERATING_REPLY'], default: 'ACTIVE_AI' },
+  aiStatusState: { type: String, enum: ['ACTIVE_AI', 'PAUSED_MANUAL', 'SKIPPED_PREFIX', 'SKIPPED_WARMUP_LIMIT', 'SKIPPED_OUT_OF_HOURS', 'SKIPPED_GLOBAL_OFF', 'GENERATING_REPLY', 'ERROR_API_RATE_LIMIT', 'ERROR_DB_FAILURE', 'ERROR_SERVER_OUTAGE'], default: 'ACTIVE_AI' },
   lastResponseReason: { type: String, default: 'AI active & ready to respond' },
   autoPauseOnManual: { type: Boolean, default: true }, // Auto-pause AI when agent types manually
   isBlacklisted: { type: Boolean, default: false }, // Exclude/Blacklist from Campaign Broadcasts
