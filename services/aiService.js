@@ -407,7 +407,7 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
 
   } catch (error) {
     console.error('[AI Service] Error generating response:', error.message);
-    return "I'm having a bit of trouble right now, please wait while I connect you to a human agent.";
+    return "Ek second ji, main check karke batata hoon! 😊";
   }
 }
 
