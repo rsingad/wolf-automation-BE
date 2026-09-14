@@ -34,6 +34,7 @@ const tenantSchema = new mongoose.Schema({
   webSearchEnabled: { type: Boolean, default: true }, // Live Web Browsing Toggle
   businessWebsiteUrl: { type: String, default: "" }, // Custom business website URL to scrape
   aiAutoReplyDisabled: { type: Boolean, default: false }, // Global AI Auto-Reply Off Switch
+  defaultAiMode: { type: String, enum: ['ALL_CUSTOMERS', 'VIP_ONLY'], default: 'VIP_ONLY' }, // 'ALL_CUSTOMERS' = Auto reply to everyone by default | 'VIP_ONLY' = Reply only to specific customers with AI ON
   accountLevel: { type: Number, default: 1 }, // 1: Warmup, 2: Growth, 3: Pro, 4: Enterprise
   dailyMessagesSent: { type: Number, default: 0 }, // Daily outbound count
   lastDailyResetDate: { type: String, default: "" }, // ISO date YYYY-MM-DD

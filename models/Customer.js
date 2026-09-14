@@ -19,6 +19,7 @@ const customerSchema = new mongoose.Schema({
   aiHistoryLimit: { type: Number, default: 40 }, // History message context depth (40, 80, 150, 200 msgs)
   memorySummary: { type: String, default: '' }, // Persistent long-term memory facts (e.g. GF likes, birthdays, promises)
   aiPaused: { type: Boolean, default: false }, // True if Human-in-the-loop takeover
+  isAiEnabled: { type: Boolean, default: false }, // Explicit VIP AI Activation switch per customer
   aiPausedUntil: { type: Date }, // 5-Minute Smart Auto-Resume Timer
   aiStatusState: { type: String, enum: ['ACTIVE_AI', 'PAUSED_MANUAL', 'SKIPPED_PREFIX', 'SKIPPED_WARMUP_LIMIT', 'SKIPPED_OUT_OF_HOURS', 'SKIPPED_GLOBAL_OFF', 'GENERATING_REPLY', 'ERROR_API_RATE_LIMIT', 'ERROR_CONTEXT_LENGTH_EXCEEDED', 'ERROR_DB_FAILURE', 'ERROR_SERVER_OUTAGE'], default: 'ACTIVE_AI' },
   lastResponseReason: { type: String, default: 'AI active & ready to respond' },

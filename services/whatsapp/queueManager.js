@@ -163,18 +163,28 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           }
         }
 
-        // Check if AI Auto-Reply is paused globally or for this customer (Human-in-the-loop)
-        if (tenant?.aiAutoReplyDisabled || customer.aiPaused) {
-          console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply is OFF (Global: ${tenant?.aiAutoReplyDisabled}, Customer: ${customer.aiPaused}). Skipping AI auto-reply.`);
-          customer.aiStatusState = tenant?.aiAutoReplyDisabled ? 'SKIPPED_GLOBAL_OFF' : 'PAUSED_MANUAL';
-          
-          const remainingMins = customer.aiPausedUntil 
-            ? Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))
-            : 5;
+        // Check Default AI Mode & Customer Specific AI Status
+        const defaultMode = tenant?.defaultAiMode || 'VIP_ONLY';
+        const isCustomerAiAllowed = defaultMode === 'ALL_CUSTOMERS' ? !customer.aiPaused : (customer.isAiEnabled && !customer.aiPaused);
 
-          customer.lastResponseReason = tenant?.aiAutoReplyDisabled 
-            ? '🌐 AI is disabled globally in System Settings' 
-            : `⏱️ AI Paused for 5 mins (Human agent replied). ${remainingMins}m left`;
+        // Check if AI Auto-Reply is paused globally or for this customer
+        if (tenant?.aiAutoReplyDisabled || !isCustomerAiAllowed) {
+          console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply skipped for ${customer.name || customer.whatsappNumber} (DefaultMode: ${defaultMode}, IsAiEnabled: ${customer.isAiEnabled}, Paused: ${customer.aiPaused}).`);
+          
+          if (tenant?.aiAutoReplyDisabled) {
+            customer.aiStatusState = 'SKIPPED_GLOBAL_OFF';
+            customer.lastResponseReason = '🌐 AI is disabled globally in System Settings';
+          } else if (defaultMode === 'VIP_ONLY' && !customer.isAiEnabled) {
+            customer.aiStatusState = 'SKIPPED_GLOBAL_OFF';
+            customer.lastResponseReason = '🔒 AI OFF for this contact (VIP Only Mode)';
+          } else {
+            customer.aiStatusState = 'PAUSED_MANUAL';
+            const remainingMins = customer.aiPausedUntil 
+              ? Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))
+              : 5;
+            customer.lastResponseReason = `⏱️ AI Paused for 5 mins (Human agent replied). ${remainingMins}m left`;
+          }
+
           await customer.save();
           if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
