@@ -140,14 +140,12 @@ exports.toggleAiPause = async (req, res) => {
     const { customerId } = req.params;
     const { aiPaused } = req.body;
 
-    const updateData = { aiPaused };
+    const updateData = { aiPaused: Boolean(aiPaused) };
     if (!aiPaused) {
-      updateData.isAiEnabled = true; // Mark explicitly enabled for VIP mode
       updateData.aiPausedUntil = null;
       updateData.aiStatusState = 'ACTIVE_AI';
-      updateData.lastResponseReason = '⚡ AI Unpaused manually by agent';
+      updateData.lastResponseReason = '⚡ AI active & ready to respond';
     } else {
-      updateData.isAiEnabled = false;
       updateData.aiStatusState = 'PAUSED_MANUAL';
       updateData.lastResponseReason = '🛑 AI Paused manually by agent';
     }
