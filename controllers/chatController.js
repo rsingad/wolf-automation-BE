@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Customer = require('../models/Customer');
 const Message = require('../models/Message');
 
@@ -187,7 +188,11 @@ exports.toggleAllAiPause = async (req, res) => {
 exports.updateCustomPrompt = async (req, res) => {
   try {
     const { customerId } = req.params;
-    const { customPrompt, aiPersona, aiVoiceGenderOverride, aiToneOverride, aiHistoryLimit, memorySummary } = req.body;
+    const { customPrompt, aiPersona, aiVoiceGenderOverride, aiToneOverride, aiHistoryLimit, memorySummary, autoPauseOnManual, isBlacklisted } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(customerId)) {
+      return res.status(400).json({ error: 'Invalid Customer ID format' });
+    }
 
     const updateFields = {};
     if (customPrompt !== undefined) updateFields.customPrompt = customPrompt;
@@ -197,18 +202,22 @@ exports.updateCustomPrompt = async (req, res) => {
     if (aiHistoryLimit !== undefined) updateFields.aiHistoryLimit = Number(aiHistoryLimit);
     if (memorySummary !== undefined) updateFields.memorySummary = memorySummary;
     if (autoPauseOnManual !== undefined) updateFields.autoPauseOnManual = Boolean(autoPauseOnManual);
-    if (req.body.isBlacklisted !== undefined) updateFields.isBlacklisted = Boolean(req.body.isBlacklisted);
+    if (isBlacklisted !== undefined) updateFields.isBlacklisted = Boolean(isBlacklisted);
 
     const customer = await Customer.findByIdAndUpdate(
       customerId, 
       updateFields, 
-      { new: true }
+      { returnDocument: 'after' }
     );
+
+    if (!customer) {
+      return res.status(404).json({ error: 'Customer not found' });
+    }
 
     res.status(200).json({ success: true, customer });
   } catch (error) {
     console.error('Error updating custom prompt & persona:', error);
-    res.status(500).json({ error: 'Server error' });
+    res.status(500).json({ error: 'Server error', details: error.message });
   }
 };
 
