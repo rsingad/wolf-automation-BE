@@ -415,7 +415,10 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
         let errorState = 'ERROR_SERVER_OUTAGE';
         let formattedReason = `⚠️ Error: ${errMsg.slice(0, 60)}`;
 
-        if (errMsg.includes('rate limit') || errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('tokens')) {
+        if (errMsg.includes('context_length_exceeded') || errMsg.includes('maximum context length') || errMsg.includes('too many tokens') || errMsg.includes('prompt is too long')) {
+          errorState = 'ERROR_CONTEXT_LENGTH_EXCEEDED';
+          formattedReason = '📏 Prompt/History Limit Exceeded: Text too long! Reduce AI History Limit or Prompt size.';
+        } else if (errMsg.includes('rate limit') || errMsg.includes('429') || errMsg.includes('quota') || errMsg.includes('tokens')) {
           errorState = 'ERROR_API_RATE_LIMIT';
           formattedReason = '🚨 Groq AI API Rate Limit / Quota Exceeded (Tokens Exhausted)';
         } else if (errMsg.includes('validation') || errMsg.includes('Mongo') || errMsg.includes('CastError')) {
