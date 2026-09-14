@@ -156,6 +156,14 @@ exports.toggleAiPause = async (req, res) => {
       { returnDocument: 'after' }
     );
 
+    if (customer && customer.tenantId) {
+      try {
+        const { getIo } = require('../config/socket');
+        const io = getIo();
+        if (io) io.to(customer.tenantId.toString()).emit('customer-updated', customer);
+      } catch (sErr) {}
+    }
+
     res.status(200).json({ success: true, customer });
   } catch (error) {
     console.error('Error toggling AI pause:', error);
