@@ -12,8 +12,13 @@ const activeSessions = new Map();
 
 async function startWhatsAppSession(tenantId, io) {
   try {
-    // Terminate pre-existing active socket for the same tenant to avoid duplicate active sockets
+    // If socket is already active and connected, do NOT recreate to prevent WhatsApp 'conflict (replaced)' error
     const existingSock = activeSessions.get(tenantId);
+    if (existingSock && typeof existingSock.sendMessage === 'function' && existingSock.user?.id) {
+      console.log(`[ConnectionManager] Session for tenant ${tenantId} is already active & connected. Re-using socket.`);
+      return existingSock;
+    }
+
     if (existingSock) {
       try {
         existingSock.ev?.removeAllListeners('connection.update');
@@ -21,9 +26,7 @@ async function startWhatsAppSession(tenantId, io) {
         if (typeof existingSock.end === 'function') {
           existingSock.end(new Error('Replacing existing connection'));
         }
-      } catch (e) {
-        /* ignore cleanup error */
-      }
+      } catch (e) {}
       activeSessions.delete(tenantId);
     }
 

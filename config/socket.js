@@ -19,17 +19,17 @@ function initializeSocket(httpServer) {
       socket.join(tenantId);
       console.log(`Socket ${socket.id} joined tenant room ${tenantId}`);
   
+      const activeSock = getActiveSession(tenantId);
+      const isRealSession = activeSock && typeof activeSock.sendMessage === 'function';
+
       if (!hasActiveSession(tenantId)) {
         setConnectingState(tenantId);
         startWhatsAppSession(tenantId, ioInstance);
+      } else if (isRealSession && activeSock.user) {
+        socket.emit('whatsapp-status', { status: 'connected' });
+        socket.emit('connection-status', { status: 'connected' });
       } else {
-        const sock = getActiveSession(tenantId);
-        if (sock && sock.user) {
-          socket.emit('whatsapp-status', { status: 'connected' });
-          socket.emit('connection-status', { status: 'connected' });
-        } else if (sock && sock.status === 'connecting') {
-          socket.emit('connection-status', { status: 'connecting' });
-        }
+        socket.emit('connection-status', { status: 'connecting' });
       }
     });
   
