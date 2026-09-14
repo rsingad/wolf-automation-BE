@@ -63,16 +63,18 @@ async function startWhatsAppSession(tenantId, io) {
         sock.ev?.removeAllListeners();
         activeSessions.delete(tenantId);
 
-        // Handle Code 405 / 440 (Connection Replaced / Conflict)
-        if (statusCode === 405 || statusCode === 440 || statusCode === DisconnectReason.connectionReplaced) {
-          console.log(`[Tenant ${tenantId}] Connection conflict (Code ${statusCode}). Re-establishing connection in 3s...`);
+        // Handle Code 405 / 440 / Conflict Replaced (Double Web Socket / Re-login on Phone)
+        const isConflict = statusCode === 405 || statusCode === 440 || statusCode === DisconnectReason.connectionReplaced || lastDisconnect?.error?.message?.includes('replaced') || lastDisconnect?.error?.message?.includes('conflict');
+
+        if (isConflict) {
+          console.log(`[Tenant ${tenantId}] Connection conflict/replaced. Waiting 5s before reconnecting clean session...`);
           io.to(tenantId).emit('connection-status', { status: 'reconnecting', reason: 'replaced' });
           
           setTimeout(() => {
             if (!hasActiveSession(tenantId)) {
               startWhatsAppSession(tenantId, io);
             }
-          }, 3000);
+          }, 5000);
           return;
         }
 
