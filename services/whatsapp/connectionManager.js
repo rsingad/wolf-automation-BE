@@ -218,9 +218,9 @@ async function startWhatsAppSession(tenantId, io) {
 
     sock.ev.on('contacts.upsert', (contacts) => syncContacts(contacts));
 
-    sock.ev.on('messaging-history.set', async ({ contacts, chats }) => {
+    sock.ev.on('messaging-history.set', async ({ contacts, chats, messages }) => {
       if (contacts && contacts.length > 0) {
-        console.log(`[Tenant ${tenantId}] messaging-history.set triggered. Found ${contacts.length} contacts, ${chats?.length || 0} chats.`);
+        console.log(`[Tenant ${tenantId}] messaging-history.set triggered. Found ${contacts.length} contacts, ${chats?.length || 0} chats, ${messages?.length || 0} historical messages.`);
         
         const activeChatJids = new Set();
         if (chats) {
@@ -229,10 +229,20 @@ async function startWhatsAppSession(tenantId, io) {
         
         await syncContacts(contacts, activeChatJids);
       }
+
+      // 📥 UNREAD MESSAGES CATCHER: Auto-process any unread messages received while server/bot was offline
+      if (messages && messages.length > 0) {
+        console.log(`[Tenant ${tenantId}] 📥 Unread/History Messages Catcher: Inspecting ${messages.length} synced messages...`);
+        const unreadOrPendingMsgs = messages.filter(m => !m.key.fromMe && m.message);
+        if (unreadOrPendingMsgs.length > 0) {
+          console.log(`[Tenant ${tenantId}] 📥 Found ${unreadOrPendingMsgs.length} unread/pending incoming messages during sync. Processing AI replies...`);
+          await handleIncomingMessages(unreadOrPendingMsgs, tenantId, sock, io);
+        }
+      }
     });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type === 'notify') {
+      if (type === 'notify' || type === 'append') {
         await handleIncomingMessages(messages, tenantId, sock, io);
       }
     });
