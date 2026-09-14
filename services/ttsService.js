@@ -86,10 +86,8 @@ async function generateVoiceNote(text, lang = 'hi', gender = 'female', customAct
         cloudPublicId = uploadResult.public_id;
         console.log(`[TTS Service] Successfully uploaded voice note to Cloudinary CDN: ${cloudUrl}`);
 
-        // Cleanup local temporary OGG file after uploading to Cloudinary
-        if (fs.existsSync(finalOggPath)) {
-          fs.unlinkSync(finalOggPath);
-        }
+        // Keep local temporary OGG file for Baileys WhatsApp audio sender
+        console.log(`[TTS Service] Successfully uploaded voice note to Cloudinary CDN: ${cloudUrl}`);
       } catch (cloudErr) {
         console.error('[TTS Service] Cloudinary upload error, falling back to local URL:', cloudErr.message);
       }

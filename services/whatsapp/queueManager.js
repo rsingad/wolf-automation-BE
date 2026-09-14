@@ -305,10 +305,11 @@ async function processQueue(tenantId, remoteJid, sock, io) {
                 await sock.sendPresenceUpdate('recording', remoteJid);
                 await randomDelay(1500, 3000);
                 
-                const mime = voiceData.filePath.endsWith('.ogg') ? 'audio/ogg; codecs=opus' : 'audio/mp4';
+                const audioSource = voiceData.cloudUrl || voiceData.filePath;
+                const mime = 'audio/ogg; codecs=opus';
 
                 const sentAudio = await sock.sendMessage(remoteJid, {
-                  audio: { url: voiceData.filePath },
+                  audio: { url: audioSource },
                   mimetype: mime,
                   ptt: true
                 });
