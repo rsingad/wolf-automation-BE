@@ -324,17 +324,7 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           quotedContent,
           quotedSender
         });
-        // Smart Interceptor: Auto-pause AI for exactly 5 MINUTES when human agent types a manual message
-        if (customer && customer.autoPauseOnManual !== false) {
-          const pauseUntil = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes timer
-          customer.aiPaused = true;
-          customer.aiPausedUntil = pauseUntil;
-          customer.aiStatusState = 'PAUSED_MANUAL';
-          customer.lastResponseReason = `⏱️ AI Paused for 5 mins (Human agent replied). Auto-resumes at ${pauseUntil.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-          await customer.save();
-          console.log(`[Smart Interceptor] ⏱️ AI Auto-paused for 5 minutes (until ${pauseUntil.toLocaleTimeString()}) for ${customer.name || customer._id}`);
-          if (io) io.to(tenantId).emit('customer-updated', customer);
-        }
+        // Show it on the dashboard!
 
         // Show it on the dashboard!
         if (io) io.to(tenantId).emit('new-message', { customerId: customer._id, message: phoneMsg });

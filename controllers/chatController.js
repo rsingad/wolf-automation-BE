@@ -116,16 +116,7 @@ exports.sendManualMessage = async (req, res) => {
       messageId: sentMsg.key.id
     });
 
-    // Auto-Pause AI when user manually sends message from Web App
-    if (customer.autoPauseOnManual !== false && !customer.aiPaused) {
-      customer.aiPaused = true;
-      await customer.save();
-      try {
-        const { getIo } = require('../config/socket');
-        const io = getIo();
-        if (io) io.to(tenantId).emit('customer-updated', customer);
-      } catch (sErr) {}
-    }
+    // Save outbound message to DB
 
     res.status(200).json({ success: true, message: outboundMsg });
   } catch (error) {

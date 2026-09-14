@@ -359,8 +359,12 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
           console.log(`[Mood-Based Switcher] 🎭 Updated Mood for ${customer.name || customer._id}: ${detectedMood} ("${sentimentSummary}")`);
           
           // Emit real-time mood update to web dashboard
-          if (io && customer.tenantId) {
-            io.to(customer.tenantId.toString()).emit('customer-updated', updatedCust);
+          if (customer.tenantId) {
+            try {
+              const { getIo } = require('../config/socket');
+              const ioInstance = getIo();
+              if (ioInstance) ioInstance.to(customer.tenantId.toString()).emit('customer-updated', updatedCust);
+            } catch (sErr) {}
           }
         } catch (moodErr) {
           console.error('[Mood Update Error]', moodErr.message);
