@@ -25,7 +25,10 @@ function initializeSocket(httpServer) {
       } else {
         const sock = getActiveSession(tenantId);
         if (sock && sock.user) {
-          ioInstance.to(tenantId).emit('whatsapp-status', { status: 'connected' });
+          socket.emit('whatsapp-status', { status: 'connected' });
+          socket.emit('connection-status', { status: 'connected' });
+        } else if (sock && sock.status === 'connecting') {
+          socket.emit('connection-status', { status: 'connecting' });
         }
       }
     });

@@ -65,16 +65,16 @@ async function startWhatsAppSession(tenantId, io) {
         sock.ev?.removeAllListeners();
         activeSessions.delete(tenantId);
 
-        // Handle Code 405 / 440 (Connection Replaced — Baileys v7 uses 440)
+        // Handle Code 405 / 440 (Connection Replaced / Conflict)
         if (statusCode === 405 || statusCode === 440 || statusCode === DisconnectReason.connectionReplaced) {
-          console.error(`[Tenant ${tenantId}] Connection replaced (Code ${statusCode}). Clearing MongoDB session & regenerating QR...`);
-          await clearState();
-          io.to(tenantId).emit('connection-status', { status: 'disconnected', reason: 'replaced' });
-          io.to(tenantId).emit('console-log', 'Session cleaned. Generating fresh QR code...');
+          console.log(`[Tenant ${tenantId}] Connection conflict (Code ${statusCode}). Re-establishing connection in 3s...`);
+          io.to(tenantId).emit('connection-status', { status: 'reconnecting', reason: 'replaced' });
           
           setTimeout(() => {
-            startWhatsAppSession(tenantId, io);
-          }, 2000);
+            if (!hasActiveSession(tenantId)) {
+              startWhatsAppSession(tenantId, io);
+            }
+          }, 3000);
           return;
         }
 
