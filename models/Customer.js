@@ -10,7 +10,7 @@ const customerSchema = new mongoose.Schema({
   tags: [{ type: String }],
   aiTag: { type: String, enum: ['HOT LEAD', 'COMPLAINT', 'SUPPORT', 'GENERAL', 'SPAM', null], default: null },
   customPrompt: { type: String }, // Specific prompt for this customer
-  aiPersona: { type: String, enum: ['default', 'loving_boyfriend', 'female_crush', 'friendly_girl', 'executive_male', 'flirty_hinglish', 'strict_manager'], default: 'default' }, // AI Persona Override
+  aiPersona: { type: String, enum: ['default', 'human_team_member', 'wolf_team_human', 'loving_boyfriend', 'female_crush', 'friendly_girl', 'executive_male', 'flirty_hinglish', 'strict_manager'], default: 'default' }, // AI Persona Override
   aiVoiceGenderOverride: { type: String, enum: ['default', 'female', 'male'], default: 'default' },
   aiToneOverride: { type: String, default: '' }, // e.g. "Flirty, sweet, romantic Hinglish"
   currentMood: { type: String, enum: ['NEUTRAL', 'HAPPY', 'SAD_TIRED', 'ANGRY_UPSET', 'FLIRTY_PLAYFUL', 'STRESSED'], default: 'NEUTRAL' },

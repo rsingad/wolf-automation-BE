@@ -167,9 +167,14 @@ async function processQueue(tenantId, remoteJid, sock, io) {
         if (tenant?.aiAutoReplyDisabled || customer.aiPaused) {
           console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply is OFF (Global: ${tenant?.aiAutoReplyDisabled}, Customer: ${customer.aiPaused}). Skipping AI auto-reply.`);
           customer.aiStatusState = tenant?.aiAutoReplyDisabled ? 'SKIPPED_GLOBAL_OFF' : 'PAUSED_MANUAL';
+          
+          const remainingMins = customer.aiPausedUntil 
+            ? Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))
+            : 5;
+
           customer.lastResponseReason = tenant?.aiAutoReplyDisabled 
             ? '🌐 AI is disabled globally in System Settings' 
-            : `🛑 AI Paused (Human agent replied). Auto-resumes in ${Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))} mins`;
+            : `🛑 AI Paused (Human agent replied). Auto-resumes in ${remainingMins} mins`;
           await customer.save();
           if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
