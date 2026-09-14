@@ -13,8 +13,28 @@ const app = express();
 const httpServer = createServer(app);
 const io = initializeSocket(httpServer);
 
-// Middleware
-app.use(cors({ origin: process.env.FRONTEND_URL || 'http://localhost:5173', credentials: true }));
+// Multi-Frontend Origin Whitelist Setup
+const allowedOrigins = [
+  process.env.FRONTEND_URL || 'http://localhost:5173',
+  process.env.FREELANCER_FRONTEND_URL || 'https://freelancers.rameshsingad.com',
+  'https://wolf.autoreply.rameshsingad.com',
+  'http://localhost:3000',
+  'http://localhost:5173',
+  'http://localhost:5174'
+];
+
+app.use(cors({
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, curl, or Postman)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
+      return callback(null, true);
+    } else {
+      return callback(null, true); // Allow external requests for public join-request form
+    }
+  },
+  credentials: true
+}));
 app.use(express.json());
 
 // Basic Route
@@ -34,6 +54,7 @@ const paymentRoutes = require('./routes/paymentRoutes');
 const publicRoutes = require('./routes/publicRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const mailRoutes = require('./routes/mailRoutes');
+const wolfGroupRoutes = require('./routes/wolfGroupRoutes');
 
 // Serve static uploads
 app.use('/uploads', express.static(require('path').join(__dirname, 'public/uploads')));
@@ -50,6 +71,8 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/public', publicRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/mail', mailRoutes);
+app.use('/api', wolfGroupRoutes); // Wolf Freelancers Group API (/api/join-request & /api/team-members)
+
 
 const PORT = process.env.PORT || 5000;
 
