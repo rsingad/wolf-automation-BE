@@ -174,7 +174,7 @@ async function processQueue(tenantId, remoteJid, sock, io) {
 
           customer.lastResponseReason = tenant?.aiAutoReplyDisabled 
             ? '🌐 AI is disabled globally in System Settings' 
-            : `🛑 AI Paused (Human agent replied). Auto-resumes in ${remainingMins} mins`;
+            : `⏱️ AI Paused for 5 mins (Human agent replied). ${remainingMins}m left`;
           await customer.save();
           if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
