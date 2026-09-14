@@ -76,6 +76,9 @@ app.use('/api', wolfGroupRoutes); // Wolf Freelancers Group API (/api/join-reque
 
 const PORT = process.env.PORT || 5000;
 
+// Silence Mongoose deprecation warnings
+mongoose.set('returnDocument', 'after');
+
 // Connect to MongoDB and start Server
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
