@@ -59,7 +59,7 @@ exports.getCampaigns = async (req, res) => {
 exports.pauseCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
-    const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'paused' }, { new: true });
+    const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'paused' }, { returnDocument: 'after' });
     res.status(200).json({ success: true, campaign });
   } catch (err) {
     res.status(500).json({ error: 'Failed to pause' });
@@ -69,7 +69,7 @@ exports.pauseCampaign = async (req, res) => {
 exports.resumeCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
-    const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'running', pauseReason: '' }, { new: true });
+    const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'running', pauseReason: '' }, { returnDocument: 'after' });
     // Trigger processor just in case
     campaignManager.startCampaignProcessor(campaign.tenantId);
     res.status(200).json({ success: true, campaign });

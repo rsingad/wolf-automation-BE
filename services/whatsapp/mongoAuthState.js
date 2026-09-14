@@ -35,7 +35,7 @@ async function useMongoDBAuthState(tenantId) {
         await BaileysAuth.findOneAndUpdate(
           { tenantId: tId, keyId },
           { tenantId: tId, keyId, data: json },
-          { upsert: true, new: true }
+          { upsert: true, returnDocument: 'after' }
         );
       }
     } catch (error) {

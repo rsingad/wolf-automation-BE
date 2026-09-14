@@ -137,7 +137,7 @@ exports.toggleAiPause = async (req, res) => {
     const customer = await Customer.findByIdAndUpdate(
       customerId, 
       { aiPaused }, 
-      { new: true }
+      { returnDocument: 'after' }
     );
 
     res.status(200).json({ success: true, customer });
