@@ -134,9 +134,19 @@ exports.toggleAiPause = async (req, res) => {
     const { customerId } = req.params;
     const { aiPaused } = req.body;
 
+    const updateData = { aiPaused };
+    if (!aiPaused) {
+      updateData.aiPausedUntil = null;
+      updateData.aiStatusState = 'ACTIVE_AI';
+      updateData.lastResponseReason = '⚡ AI Unpaused manually by agent';
+    } else {
+      updateData.aiStatusState = 'PAUSED_MANUAL';
+      updateData.lastResponseReason = '🛑 AI Paused manually by agent';
+    }
+
     const customer = await Customer.findByIdAndUpdate(
       customerId, 
-      { aiPaused }, 
+      updateData, 
       { returnDocument: 'after' }
     );
 
