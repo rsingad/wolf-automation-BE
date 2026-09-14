@@ -16,9 +16,10 @@ const openai = new OpenAI({
  * @returns {string} AI Response
  */
 async function generateAIResponse(tenantId, customerId, incomingMessage) {
+  let customer = null;
+  let tenant = null;
   try {
     // 1. Fetch Tenant settings
-    let tenant = null;
     try {
       tenant = await Tenant.findById(tenantId);
     } catch (e) {}
@@ -34,7 +35,7 @@ async function generateAIResponse(tenantId, customerId, incomingMessage) {
     }
 
     // 2. Fetch Customer specifics
-    const customer = await Customer.findById(customerId);
+    customer = await Customer.findById(customerId);
     
     // If AI is paused for this customer, return null so we don't reply
     if (customer && customer.aiPaused) {
@@ -260,11 +261,12 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     // 5. Call Groq API with Exponential Backoff & Model Fallback Strategy
     const startTime = Date.now();
     
-    // Ultra-Fast Groq Models in priority order (10x Speed Tier)
+    // Ultra-Fast Groq Models in priority order (Active Supported Models)
     const modelsToTry = [
       'llama-3.3-70b-versatile',
-      'llama-3.1-8b-instant',
-      'mixtral-8x7b-32768'
+      'llama3-8b-8192',
+      'llama3-70b-8192',
+      'gemma2-9b-it'
     ];
 
     let completion = null;
