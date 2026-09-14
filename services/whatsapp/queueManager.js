@@ -141,12 +141,37 @@ async function processQueue(tenantId, remoteJid, sock, io) {
         const trimmedText = (textContent || '').trim();
         if (trimmedText.startsWith('//') || trimmedText.startsWith('#') || trimmedText.toLowerCase().startsWith('[test]') || trimmedText.toLowerCase().startsWith('[skip]')) {
           console.log(`[Queue] 🤫 Message starts with ignore prefix ('//' or '#'). Skipping AI auto-reply.`);
+          customer.aiStatusState = 'SKIPPED_PREFIX';
+          customer.lastResponseReason = `🤫 Skipped AI reply because message starts with ignore prefix ("${trimmedText.slice(0, 5)}")`;
+          await customer.save();
+          if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
+        }
+
+        // ⏱️ 5-MINUTE AUTO-RESUME TIMER CHECK FOR MANUAL MESSAGES
+        if (customer.aiPaused && customer.aiPausedUntil) {
+          const now = new Date();
+          if (now >= new Date(customer.aiPausedUntil)) {
+            // 5 minutes have passed since last manual message! Auto-resume AI!
+            customer.aiPaused = false;
+            customer.aiPausedUntil = null;
+            customer.aiStatusState = 'ACTIVE_AI';
+            customer.lastResponseReason = '⚡ AI Auto-Resumed after 5-minute manual pause window!';
+            await customer.save();
+            console.log(`[Queue 5-Min Timer] ⚡ 5-minute pause expired! Auto-resuming AI for ${customer.name || customer._id}`);
+            if (io) io.to(tenantId).emit('customer-updated', customer);
+          }
         }
 
         // Check if AI Auto-Reply is paused globally or for this customer (Human-in-the-loop)
         if (tenant?.aiAutoReplyDisabled || customer.aiPaused) {
           console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply is OFF (Global: ${tenant?.aiAutoReplyDisabled}, Customer: ${customer.aiPaused}). Skipping AI auto-reply.`);
+          customer.aiStatusState = tenant?.aiAutoReplyDisabled ? 'SKIPPED_GLOBAL_OFF' : 'PAUSED_MANUAL';
+          customer.lastResponseReason = tenant?.aiAutoReplyDisabled 
+            ? '🌐 AI is disabled globally in System Settings' 
+            : `🛑 AI Paused (Human agent replied). Auto-resumes in ${Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))} mins`;
+          await customer.save();
+          if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
         }
 
@@ -156,6 +181,10 @@ async function processQueue(tenantId, remoteJid, sock, io) {
 
         if (warmup.dailyRemaining <= 0) {
           console.log(`[Tenant ${tenantId}] 🛡️ Anti-Ban Daily Limit Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs). Pausing automated replies today to protect WhatsApp account.`);
+          customer.aiStatusState = 'SKIPPED_WARMUP_LIMIT';
+          customer.lastResponseReason = `🛡️ Anti-Ban Shield Limit Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs/day)`;
+          await customer.save();
+          if (io) io.to(tenantId).emit('customer-updated', customer);
           if (io) io.to(tenantId).emit('warmup-limit-reached', { warmup });
           continue;
         }
@@ -175,6 +204,10 @@ async function processQueue(tenantId, remoteJid, sock, io) {
 
         if (isOutOfHours && outOfHoursAction === 'silent') {
           console.log(`[Tenant ${tenantId}] 🌙 Out of hours (Silent Mode Active). Skipping response to ${remoteJid}`);
+          customer.aiStatusState = 'SKIPPED_OUT_OF_HOURS';
+          customer.lastResponseReason = '🌙 Out of Business Hours (Silent Mode Active)';
+          await customer.save();
+          if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
         }
 
@@ -209,6 +242,10 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             }
           } else {
             if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: true });
+            
+            // 🧠 IQ200 INSTANT HUMAN TYPING PRESENCE: Show WhatsApp typing... IMMEDIATELY on request arrival
+            await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+
             let inputMessage = textContent;
             
             // 💡 QUOTED REPLY HIERARCHY INJECTION FOR AI REASONING
@@ -220,7 +257,22 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             if (isOutOfHours && outOfHoursAction === 'ai_natural') {
               inputMessage += ` [SYSTEM NOTE: It is currently outside business hours (closed). Respond naturally as a human assistant taking a note for the owner who will return tomorrow morning.]`;
             }
+            
+            const aiCallStartTime = Date.now();
             aiReply = await generateAIResponse(tenantId, customer._id, inputMessage);
+            const aiElapsedTimeMs = Date.now() - aiCallStartTime;
+            console.log(`[IQ200 Engine] AI Generation took ${aiElapsedTimeMs}ms.`);
+
+            // 🧠 IQ200 ADAPTIVE DYNAMIC DELAY BALANCER:
+            // Target realistic human typing time based on message length (e.g. 1500ms to 3500ms)
+            // Subtract time already spent in AI generation so reply feels perfectly timed!
+            const targetHumanTypingMs = Math.max(1200, Math.min((aiReply || '').length * 25, 3500));
+            const remainingDelayMs = Math.max(300, targetHumanTypingMs - aiElapsedTimeMs);
+
+            if (remainingDelayMs > 0) {
+              console.log(`[IQ200 Engine] Balancing delay: Waiting remaining ${remainingDelayMs}ms of target ${targetHumanTypingMs}ms...`);
+              await randomDelay(remainingDelayMs, remainingDelayMs + 150);
+            }
           }
         }
         
@@ -263,16 +315,7 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             for (let i = 0; i < chunks.length; i++) {
               const chunk = chunks[i];
               
-              await sock.sendPresenceUpdate('composing', remoteJid);
-              if (io && !isOutOfHours) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: true });
-              
-              const calculatedTypingTime = Math.max(1500, Math.min(chunk.length * 45, 9000));
-              const jitter = Math.floor(Math.random() * 800) - 400;
-              const finalDelay = Math.max(1200, calculatedTypingTime + jitter);
-              
-              await randomDelay(finalDelay, finalDelay + 300);
-              
-              await sock.sendPresenceUpdate('paused', remoteJid);
+              await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
               if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: false });
 
               const sentMsg = await sock.sendMessage(remoteJid, { text: chunk });

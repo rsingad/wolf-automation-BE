@@ -68,10 +68,23 @@ You have the following permanent memory facts stored about this specific person.
 "${customer.memorySummary}"`;
     }
 
-    systemPrompt += `\n\n[AUTO LONG-TERM MEMORY SAVER]
-If the user shares key personal facts about themselves (e.g. Nickname, Birthday, Favorite food, Likes/Dislikes, Promises, Location, Secret), append tag [SAVE_FACT: Fact details] at the end of your reply.
-Example: "Aww that's so sweet! [SAVE_FACT: Birthday is 14 Oct, Loves Pizza & Dark Chocolates]"
-The system will automatically extract and save this into permanent memory!`;
+    // 🎭 MOOD-BASED DYNAMIC EMOTION SWITCHER ENGINE
+    if (customer && customer.currentMood && customer.currentMood !== 'NEUTRAL') {
+      systemPrompt += `\n\n[REAL-TIME MOOD & SENTIMENT TRACKER]
+Detected Current Customer Emotion: ${customer.currentMood} (${customer.detectedSentiment || 'Dynamic Sentiment'}).
+EMOTION-ADAPTIVE BEHAVIOR RULES (CRITICAL):
+- If SAD_TIRED: Immediately drop all business/casual tone. Be empathetic, soft, ultra-comforting, offer warm listening. Use soothing Hinglish & gentle emojis (🌸, 🫂, ✨).
+- If ANGRY_UPSET: Do NOT argue. Be extremely polite, validating, calm, and reassuring. Offer instant solutions or peaceful support.
+- If HAPPY / FLIRTY_PLAYFUL: Be enthusiastic, match her high energy, witty, playful, and fun!
+- If STRESSED: Offer calm guidance, ask how you can lighten her load, be a supportive anchor.`;
+    }
+
+    systemPrompt += `\n\n[AUTO LONG-TERM MEMORY & SENTIMENT ANALYZER]
+1. If user shares personal facts, append tag [SAVE_FACT: Fact details] at the end.
+2. AUTOMATICALLY ANALYZE USER'S MOOD in this message and append tag [UPDATE_MOOD: MOOD_NAME | Sentiment Summary] at the end of your response.
+Allowed MOOD_NAME values: HAPPY, SAD_TIRED, ANGRY_UPSET, FLIRTY_PLAYFUL, STRESSED, NEUTRAL.
+Example: "Aww rest karlo thoda ji! 🌸 [UPDATE_MOOD: SAD_TIRED | User mentioned being exhausted after long day]"
+The system will automatically extract and save the updated mood!`;
 
     if (tenant && tenant.botPrompt) {
       systemPrompt += `\n\n[GLOBAL BUSINESS RULE]\n${tenant.botPrompt}`;
@@ -247,11 +260,11 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     // 5. Call Groq API with Exponential Backoff & Model Fallback Strategy
     const startTime = Date.now();
     
-    // Models in priority order (Primary -> Fallback 1 -> Fallback 2)
+    // Ultra-Fast Groq Models in priority order (10x Speed Tier)
     const modelsToTry = [
-      'groq/compound-mini',
-      'allam-2-7b',
-      'qwen/qwen3.6-27b'
+      'llama-3.3-70b-versatile',
+      'llama-3.1-8b-instant',
+      'mixtral-8x7b-32768'
     ];
 
     let completion = null;
@@ -322,6 +335,34 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
         console.log(`[AI Auto-Memory] Saved new fact for ${customer.name || customer._id}: ${newFact}`);
       } catch (memErr) {
         console.error('[AI Auto-Memory Error]', memErr.message);
+      }
+    }
+
+    // Auto-extract [UPDATE_MOOD: MOOD_NAME | Sentiment Summary] tag
+    const moodMatch = aiReply.match(/\[UPDATE_MOOD:\s*([A-Z_]+)\s*\|\s*([^\]]+)\]/i);
+    if (moodMatch && customer) {
+      const detectedMood = moodMatch[1].toUpperCase().trim();
+      const sentimentSummary = moodMatch[2].trim();
+      aiReply = aiReply.replace(/\[UPDATE_MOOD:\s*[^\]]+\]/gi, '').trim();
+
+      const validMoods = ['HAPPY', 'SAD_TIRED', 'ANGRY_UPSET', 'FLIRTY_PLAYFUL', 'STRESSED', 'NEUTRAL'];
+      if (validMoods.includes(detectedMood)) {
+        try {
+          const updatedCust = await Customer.findByIdAndUpdate(customer._id, {
+            currentMood: detectedMood,
+            detectedSentiment: sentimentSummary,
+            lastEmotionUpdate: new Date()
+          }, { returnDocument: 'after' });
+
+          console.log(`[Mood-Based Switcher] 🎭 Updated Mood for ${customer.name || customer._id}: ${detectedMood} ("${sentimentSummary}")`);
+          
+          // Emit real-time mood update to web dashboard
+          if (io && customer.tenantId) {
+            io.to(customer.tenantId.toString()).emit('customer-updated', updatedCust);
+          }
+        } catch (moodErr) {
+          console.error('[Mood Update Error]', moodErr.message);
+        }
       }
     }
 

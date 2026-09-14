@@ -13,9 +13,15 @@ const customerSchema = new mongoose.Schema({
   aiPersona: { type: String, enum: ['default', 'loving_boyfriend', 'female_crush', 'friendly_girl', 'executive_male', 'flirty_hinglish', 'strict_manager'], default: 'default' }, // AI Persona Override
   aiVoiceGenderOverride: { type: String, enum: ['default', 'female', 'male'], default: 'default' },
   aiToneOverride: { type: String, default: '' }, // e.g. "Flirty, sweet, romantic Hinglish"
+  currentMood: { type: String, enum: ['NEUTRAL', 'HAPPY', 'SAD_TIRED', 'ANGRY_UPSET', 'FLIRTY_PLAYFUL', 'STRESSED'], default: 'NEUTRAL' },
+  detectedSentiment: { type: String, default: 'Neutral & Calm' },
+  lastEmotionUpdate: { type: Date },
   aiHistoryLimit: { type: Number, default: 40 }, // History message context depth (40, 80, 150, 200 msgs)
   memorySummary: { type: String, default: '' }, // Persistent long-term memory facts (e.g. GF likes, birthdays, promises)
   aiPaused: { type: Boolean, default: false }, // True if Human-in-the-loop takeover
+  aiPausedUntil: { type: Date }, // 5-Minute Smart Auto-Resume Timer
+  aiStatusState: { type: String, enum: ['ACTIVE_AI', 'PAUSED_MANUAL', 'SKIPPED_PREFIX', 'SKIPPED_WARMUP_LIMIT', 'SKIPPED_OUT_OF_HOURS', 'SKIPPED_GLOBAL_OFF', 'GENERATING_REPLY'], default: 'ACTIVE_AI' },
+  lastResponseReason: { type: String, default: 'AI active & ready to respond' },
   autoPauseOnManual: { type: Boolean, default: true }, // Auto-pause AI when agent types manually
   isBlacklisted: { type: Boolean, default: false }, // Exclude/Blacklist from Campaign Broadcasts
   isGroup: { type: Boolean, default: false },
