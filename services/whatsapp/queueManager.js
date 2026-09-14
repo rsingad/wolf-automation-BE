@@ -281,7 +281,11 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           }
         }
         
-        if (aiReply) {
+        if (!aiReply) {
+          // If AI failed or returned null (e.g. Rate limit or DB error), reset typing status
+          await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
+          if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: false });
+        } else {
           const { processActionTags, processBookingTag } = require('../bookingService');
           aiReply = await processActionTags(tenantId, customer._id, aiReply);
 

@@ -81,9 +81,15 @@ exports.sendManualMessage = async (req, res) => {
       return res.status(400).json({ error: 'WhatsApp session is not active or not logged in yet.' });
     }
 
+    // Format destination JID (Handles LID identifiers like 110587002527830@lid or @s.whatsapp.net or raw digits)
+    let targetJid = customer.whatsappNumber;
+    if (!targetJid.includes('@')) {
+      targetJid = `${targetJid.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+    }
+
     // 1. Send "Typing..." status to the customer's WhatsApp
     try {
-      await sock.sendPresenceUpdate('composing', customer.whatsappNumber);
+      await sock.sendPresenceUpdate('composing', targetJid);
     } catch (e) {
       console.warn('Failed to send composing presence:', e.message);
     }
@@ -92,11 +98,11 @@ exports.sendManualMessage = async (req, res) => {
     await new Promise(resolve => setTimeout(resolve, 1500));
 
     // 3. Send the message via Baileys
-    const sentMsg = await sock.sendMessage(customer.whatsappNumber, { text: content });
+    const sentMsg = await sock.sendMessage(targetJid, { text: content });
 
     // 4. Remove "Typing..." status
     try {
-      await sock.sendPresenceUpdate('paused', customer.whatsappNumber);
+      await sock.sendPresenceUpdate('paused', targetJid);
     } catch (e) {
       console.warn('Failed to send paused presence:', e.message);
     }
