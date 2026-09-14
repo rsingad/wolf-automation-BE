@@ -210,6 +210,13 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           } else {
             if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: true });
             let inputMessage = textContent;
+            
+            // 💡 QUOTED REPLY HIERARCHY INJECTION FOR AI REASONING
+            if (mediaOpts && mediaOpts.quotedContent) {
+              inputMessage = `[USER IS SPECIFICALLY REPLYING TO THIS MESSAGE: "${mediaOpts.quotedContent}"] -> USER SAYS: "${textContent}"`;
+              console.log(`[Queue AI Prompt Context] Injected Quoted Reply Context: "${mediaOpts.quotedContent}"`);
+            }
+
             if (isOutOfHours && outOfHoursAction === 'ai_natural') {
               inputMessage += ` [SYSTEM NOTE: It is currently outside business hours (closed). Respond naturally as a human assistant taking a note for the owner who will return tomorrow morning.]`;
             }

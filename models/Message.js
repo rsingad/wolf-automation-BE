@@ -12,7 +12,10 @@ const messageSchema = new mongoose.Schema({
   deletedBySender: { type: Boolean, default: false }, // Anti-delete feature
   mediaUrl: { type: String }, // Path to downloaded media
   mediaType: { type: String, enum: ['image', 'video', 'audio', 'document'] },
-  isViewOnce: { type: Boolean, default: false } // DEVIL MODE: Anti-View Once
+  isViewOnce: { type: Boolean, default: false }, // DEVIL MODE: Anti-View Once
+  quotedMessageId: { type: String }, // WhatsApp Stanza ID of quoted parent message
+  quotedContent: { type: String }, // Original content of the replied message
+  quotedSender: { type: String } // Sender of quoted message (customer, bot, agent)
 }, { timestamps: true });
 
 module.exports = mongoose.model('Message', messageSchema);

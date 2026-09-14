@@ -56,6 +56,29 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
     let textContent = actualMsg.conversation || actualMsg.extendedTextMessage?.text || actualMsg.imageMessage?.caption || actualMsg.videoMessage?.caption;
     let mediaUrl = null;
     let mediaType = null;
+
+    // Extract Quoted Message (ContextInfo for Left-to-Right Swiped Replies)
+    const contextInfo = actualMsg.extendedTextMessage?.contextInfo || 
+                        actualMsg.imageMessage?.contextInfo || 
+                        actualMsg.videoMessage?.contextInfo ||
+                        actualMsg.audioMessage?.contextInfo;
+
+    let quotedMessageId = null;
+    let quotedContent = null;
+    let quotedSender = null;
+
+    if (contextInfo && contextInfo.quotedMessage) {
+      quotedMessageId = contextInfo.stanzaId || null;
+      const qm = contextInfo.quotedMessage;
+      quotedContent = qm.conversation || 
+                      qm.extendedTextMessage?.text || 
+                      qm.imageMessage?.caption || 
+                      qm.videoMessage?.caption || 
+                      (qm.imageMessage ? '📷 Image' : qm.videoMessage ? '🎥 Video' : qm.audioMessage ? '🎤 Voice Note' : 'Quoted Message');
+      
+      quotedSender = contextInfo.participant || null;
+      console.log(`[Quoted Message Intercepted] StanzaId: ${quotedMessageId} | Quoted Text: "${quotedContent}"`);
+    }
     
     // Ensure uploads directory exists
     const uploadsDir = path.join(__dirname, '../../public/uploads');
@@ -203,7 +226,10 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           participantName,
           mediaUrl,
           mediaType,
-          isViewOnce
+          isViewOnce,
+          quotedMessageId,
+          quotedContent,
+          quotedSender
         });
 
         if (io) {
@@ -293,7 +319,10 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           messageId: msg.key.id,
           mediaUrl,
           mediaType,
-          isViewOnce
+          isViewOnce,
+          quotedMessageId,
+          quotedContent,
+          quotedSender
         });
         // Smart Interceptor (Idea 2): Auto-pause AI if user manually types & sends a message
         if (customer && customer.autoPauseOnManual !== false && !customer.aiPaused) {
@@ -322,8 +351,16 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
       })
       .catch(console.error);
 
-    // Push to user's queue
-    addToQueue(tenantId, remoteJid, textContent || '', msg.key, msg.pushName, sock, io, { mediaUrl, mediaType, isViewOnce, deviceType });
+    // Push to user's queue with quoted context
+    addToQueue(tenantId, remoteJid, textContent || '', msg.key, msg.pushName, sock, io, { 
+      mediaUrl, 
+      mediaType, 
+      isViewOnce, 
+      deviceType,
+      quotedMessageId,
+      quotedContent,
+      quotedSender
+    });
   }
 }
 
