@@ -35,10 +35,8 @@ async function startWhatsAppSession(tenantId, io) {
     const sock = makeWASocket({
       version,
       auth: state,
-      browser: ['Ubuntu', 'Chrome', '120.0.0.0'],
-      printQRInTerminal: false,
-      logger: pino({ level: 'silent' }),
-      syncFullHistory: false
+      syncFullHistory: false,
+      shouldSyncHistory: () => false
     });
 
     sock.ev.on('creds.update', saveCreds);
@@ -218,9 +216,9 @@ async function startWhatsAppSession(tenantId, io) {
 
     sock.ev.on('contacts.upsert', (contacts) => syncContacts(contacts));
 
-    sock.ev.on('messaging-history.set', async ({ contacts, chats, messages }) => {
+    sock.ev.on('messaging-history.set', async ({ contacts, chats }) => {
       if (contacts && contacts.length > 0) {
-        console.log(`[Tenant ${tenantId}] messaging-history.set triggered. Found ${contacts.length} contacts, ${chats?.length || 0} chats, ${messages?.length || 0} historical messages.`);
+        console.log(`[Tenant ${tenantId}] Contacts Sync Triggered. Found ${contacts.length} contacts for dashboard list.`);
         
         const activeChatJids = new Set();
         if (chats) {
@@ -228,16 +226,6 @@ async function startWhatsAppSession(tenantId, io) {
         }
         
         await syncContacts(contacts, activeChatJids);
-      }
-
-      // 📥 UNREAD MESSAGES CATCHER: Auto-process any unread messages received while server/bot was offline
-      if (messages && messages.length > 0) {
-        console.log(`[Tenant ${tenantId}] 📥 Unread/History Messages Catcher: Inspecting ${messages.length} synced messages...`);
-        const unreadOrPendingMsgs = messages.filter(m => !m.key.fromMe && m.message);
-        if (unreadOrPendingMsgs.length > 0) {
-          console.log(`[Tenant ${tenantId}] 📥 Found ${unreadOrPendingMsgs.length} unread/pending incoming messages during sync. Processing AI replies...`);
-          await handleIncomingMessages(unreadOrPendingMsgs, tenantId, sock, io);
-        }
       }
     });
 

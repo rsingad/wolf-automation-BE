@@ -261,12 +261,12 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     // 5. Call Groq API with Exponential Backoff & Model Fallback Strategy
     const startTime = Date.now();
     
-    // Ultra-Fast Groq Models in priority order (Active Supported Models)
+    // Ultra-Fast Groq Models in priority order (Currently Active Live Supported Models)
     const modelsToTry = [
-      'llama-3.3-70b-versatile',
-      'llama3-8b-8192',
-      'llama3-70b-8192',
-      'gemma2-9b-it'
+      'groq/compound-mini',
+      'groq/compound',
+      'qwen/qwen3.8-27b',
+      'openai/gpt-oss-20b'
     ];
 
     let completion = null;

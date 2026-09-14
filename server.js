@@ -29,7 +29,7 @@ app.use(cors({
     return callback(null, origin); // Dynamically reflect requested origin for 100% CORS compliance
   },
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'x-master-pin', 'X-Master-Pin'],
   credentials: true
 }));
 app.use(express.json());
