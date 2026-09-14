@@ -133,6 +133,46 @@ async function processActionTags(tenantId, customerId, aiText) {
     text = text.replace(/\[RESCHEDULE_BOOKING:\s*[\d\-]+\s+[\d:]+\]/gi, '').trim();
   }
 
+  // ── SAVE_FACT (Long-Term Memory Auto-Appender) ────────────────────────────
+  const factMatch = text.match(/\[SAVE_FACT:\s*([^\]]+)\]/i);
+  if (factMatch) {
+    const newFact = factMatch[1].trim();
+    try {
+      const cust = await Customer.findById(customerId);
+      if (cust) {
+        let existingSummary = cust.memorySummary ? cust.memorySummary.trim() : '';
+        if (!existingSummary.includes(newFact)) {
+          cust.memorySummary = existingSummary ? `${existingSummary} | ${newFact}` : newFact;
+          await cust.save();
+          console.log(`[Memory Engine] 🧠 Automatically saved new long-term fact for ${cust.name}: "${newFact}"`);
+        }
+      }
+    } catch (mErr) {
+      console.error('[Memory Engine] Error saving memory fact:', mErr.message);
+    }
+    text = text.replace(/\[SAVE_FACT:\s*[^\]]+\]/gi, '').trim();
+  }
+
+  // ── UPDATE_MOOD (Dynamic Emotion Tracker) ─────────────────────────────────
+  const moodMatch = text.match(/\[UPDATE_MOOD:\s*([A-Z_]+)\s*\|\s*([^\]]+)\]/i);
+  if (moodMatch) {
+    const newMood = moodMatch[1].trim();
+    const sentimentDesc = moodMatch[2].trim();
+    try {
+      const cust = await Customer.findById(customerId);
+      if (cust) {
+        cust.currentMood = newMood;
+        cust.detectedSentiment = sentimentDesc;
+        cust.lastEmotionUpdate = new Date();
+        await cust.save();
+        console.log(`[Emotion Engine] 🎭 Updated mood for ${cust.name}: ${newMood} (${sentimentDesc})`);
+      }
+    } catch (eErr) {
+      console.error('[Emotion Engine] Error updating mood:', eErr.message);
+    }
+    text = text.replace(/\[UPDATE_MOOD:\s*[^\]]+\]/gi, '').trim();
+  }
+
   return text;
 }
 
