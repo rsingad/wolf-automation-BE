@@ -251,13 +251,19 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       try {
         console.log(`[Campaign] Dispatching message for ${phone}:\n${messageText}`);
         
-        // Anti-ban: Presence
+        // Anti-ban: Dynamic Word-Count Based Human Typing Speed (Average ~40 WPM + Human Thinking Pause)
+        const wordCount = messageText.trim().split(/\s+/).length;
+        // Average human typing speed: ~200-300ms per character / 300ms per word + random 2-6s thinking pause
+        const baseTypingMs = Math.max(4000, Math.min(wordCount * 400, 25000)); 
+        const randomPauseMs = Math.floor(Math.random() * 4000) + 2000; // Extra 2-6s human pause
+        const totalTypingDuration = baseTypingMs + randomPauseMs;
+
         await sock.sendPresenceUpdate('available');
-        await randomDelay(1000, 2000);
+        await randomDelay(1000, 2500);
         await sock.sendPresenceUpdate('composing', remoteJid);
         
-        // Typing delay (e.g. 3-6 seconds)
-        await randomDelay(3000, 6000);
+        console.log(`[Campaign Human Typing Simulator] ⌨️ Words: ${wordCount}. Showing "typing..." for ${Math.round(totalTypingDuration/1000)} seconds to ${phone}...`);
+        await randomDelay(totalTypingDuration, totalTypingDuration + 500);
         await sock.sendPresenceUpdate('paused', remoteJid);
         
         // Send (Photo with Caption or Text Message)
@@ -343,20 +349,24 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       }
 
       // Anti-ban delay based on selected safety mode
-      let minDelay = 25000;
-      let maxDelay = 50000;
+      let minDelay = 250000; // Default Ultra Stealth: ~4 to 6 hours for 50 msgs (250s - 450s per msg)
+      let maxDelay = 450000;
+      
       if (campaign.safetyMode === 'fast') {
         minDelay = 8000;
         maxDelay = 15000;
       } else if (campaign.safetyMode === 'balanced') {
         minDelay = 15000;
         maxDelay = 30000;
-      } else { // 'safe' (Ultra Safety 25-50s)
-        minDelay = 25000;
-        maxDelay = 50000;
+      } else if (campaign.safetyMode === 'safe') {
+        minDelay = 45000; // Safe Mode: 45-90s
+        maxDelay = 90000;
+      } else { // 'stealth' or Default Ultra Stealth (4-6 Hours for 50 msgs)
+        minDelay = 250000; // 4.1 mins min
+        maxDelay = 450000; // 7.5 mins max
       }
 
-      console.log(`[Campaign] Anti-Ban Safety (${campaign.safetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)}-${Math.round(maxDelay/1000)} seconds...`);
+      console.log(`[Campaign] 🛡️ Ultra Stealth Anti-Ban (${campaign.safetyMode || 'stealth'}): Waiting ${Math.round(minDelay/1000/60)} to ${Math.round(maxDelay/1000/60)} minutes before next contact...`);
       await randomDelay(minDelay, maxDelay);
     }
   } catch (error) {
