@@ -81,11 +81,9 @@ EMOTION-ADAPTIVE BEHAVIOR RULES (CRITICAL):
     }
 
     systemPrompt += `\n\n[AUTO LONG-TERM MEMORY & SENTIMENT ANALYZER]
-1. If user shares personal facts, append tag [SAVE_FACT: Fact details] at the end.
-2. AUTOMATICALLY ANALYZE USER'S MOOD in this message and append tag [UPDATE_MOOD: MOOD_NAME | Sentiment Summary] at the end of your response.
-Allowed MOOD_NAME values: HAPPY, SAD_TIRED, ANGRY_UPSET, FLIRTY_PLAYFUL, STRESSED, NEUTRAL.
-Example: "Aww rest karlo thoda ji! 🌸 [UPDATE_MOOD: SAD_TIRED | User mentioned being exhausted after long day]"
-The system will automatically extract and save the updated mood!`;
+1. If user shares personal facts or business details, extract them silently. NEVER output raw internal tags or code like "(SAVE_FACT: ...)" in your user-visible response text.
+2. AUTOMATICALLY ANALYZE USER'S MOOD in this message and append tag [UPDATE_MOOD: MOOD_NAME | Sentiment Summary] at the very end of your response.
+Allowed MOOD_NAME values: HAPPY, SAD_TIRED, ANGRY_UPSET, FLIRTY_PLAYFUL, STRESSED, NEUTRAL.`;
 
     if (tenant && tenant.botPrompt) {
       systemPrompt += `\n\n[GLOBAL BUSINESS RULE / CAMPAIGN INSTRUCTIONS]\n${tenant.botPrompt}
@@ -330,11 +328,11 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     let aiReply = completion.choices[0].message.content || '';
     aiReply = aiReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
 
-    // Auto-extract [SAVE_FACT: ...] tag and append to customer permanent memory
-    const factMatch = aiReply.match(/\[SAVE_FACT:\s*([^\]]+)\]/i);
+    // Auto-extract [SAVE_FACT: ...] or (SAVE_FACT: ...) tag and append to customer permanent memory
+    const factMatch = aiReply.match(/[\[\(]SAVE_FACT:\s*([^\)\]]+)[\)\]]/i);
     if (factMatch && customer) {
       const newFact = factMatch[1].trim();
-      aiReply = aiReply.replace(/\[SAVE_FACT:\s*[^\]]+\]/gi, '').trim();
+      aiReply = aiReply.replace(/[\[\(]SAVE_FACT:\s*([^\)\]]+)[\)\]]/gi, '').trim();
       const existingMemory = customer.memorySummary ? customer.memorySummary + '\n' : '';
       const updatedMemory = existingMemory + `• ${newFact}`;
       try {
@@ -344,6 +342,8 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
         console.error('[AI Auto-Memory Error]', memErr.message);
       }
     }
+    // Final cleanup pass to strip any dangling SAVE_FACT leaks
+    aiReply = aiReply.replace(/[\[\(]?SAVE_FACT:[^\)\]]+[\)\]]?/gi, '').trim();
 
     // 🏷️ Auto-extract [SET_TAG: HOT LEAD / COMPLAINT / SUPPORT / SPAM] tag
     const tagMatch = aiReply.match(/\[SET_TAG:\s*([A-Z_\s]+)\]/i);
