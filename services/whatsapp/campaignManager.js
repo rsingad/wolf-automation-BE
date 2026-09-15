@@ -203,22 +203,8 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
           messageText = aiRes;
         }
       } catch (aiErr) {
-        console.error(`[Campaign] 🚨 Groq AI API Error for ${phone}: ${aiErr.message}`);
-        
-        // Mark contact status as 'failed' so it appears in Failed count on Dashboard and user can Retry anytime!
-        campaign.contacts[pendingContactIndex].status = 'failed';
-        campaign.contacts[pendingContactIndex].error = `Groq AI API Quota/Key Error: ${aiErr.message}`;
-        campaign.progress.failed += 1;
-        await campaign.save();
-
-        const { getIo } = require('../../config/socket');
-        const io = getIo();
-        if (io) {
-          io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
-        }
-
-        // Move to next contact in loop
-        continue;
+        console.warn(`[Campaign] ⚠️ Groq AI API Quota/Limit Warning for ${phone}: ${aiErr.message}. Falling back to raw template message.`);
+        // Fallback: Use the original template text so campaign message sends smoothly without stopping!
       }
 
       // 🛡️ ANTI-BAN SHIELD 1: Check for URLs & 2-Step Broadcast logic
@@ -303,7 +289,15 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
           }
         }
 
-        const sentMsg = await sock.sendMessage(remoteJid, messagePayload);
+        // ⏱️ 15-Second Hard Timeout Guard to prevent infinite hang on stale socket
+        const sendWithTimeout = async () => {
+          return Promise.race([
+            sock.sendMessage(remoteJid, messagePayload),
+            new Promise((_, reject) => setTimeout(() => reject(new Error('WhatsApp socket send timeout (15s exceeded)')), 15000))
+          ]);
+        };
+
+        const sentMsg = await sendWithTimeout();
         await recordOutboundMessage(tenantId);
         
         // Update contact status
@@ -339,10 +333,37 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         }
 
       } catch (err) {
-        console.error(`[Campaign] Failed to send to ${phone}`, err.message);
-        campaign.contacts[pendingContactIndex].status = 'failed';
-        campaign.contacts[pendingContactIndex].error = err.message;
-        campaign.progress.failed += 1;
+        console.error(`[Campaign] Failed to send to ${phone}:`, err.message);
+        
+        // 🔄 Smart Auto-Retry Guard: If timeout occurred due to temporary socket freeze, retry ONCE after short session check
+        if (err.message && err.message.includes('timeout')) {
+          console.log(`[Campaign Retry Guard] 🔄 Timeout detected for ${phone}. Checking active session & retrying once...`);
+          const activeSock = connectionManager.getActiveSession(tenantId);
+          if (activeSock) {
+            try {
+              await randomDelay(3000, 5000);
+              const retryMsg = await activeSock.sendMessage(remoteJid, messagePayload);
+              await recordOutboundMessage(tenantId);
+              
+              campaign.contacts[pendingContactIndex].status = 'sent';
+              campaign.progress.sent += 1;
+              console.log(`[Campaign Retry Guard] ✅ Retry SUCCESSFUL for ${phone}!`);
+            } catch (retryErr) {
+              console.error(`[Campaign Retry Guard] ❌ Retry failed for ${phone}:`, retryErr.message);
+              campaign.contacts[pendingContactIndex].status = 'failed';
+              campaign.contacts[pendingContactIndex].error = `Network/Socket Timeout: ${retryErr.message}`;
+              campaign.progress.failed += 1;
+            }
+          } else {
+            campaign.contacts[pendingContactIndex].status = 'failed';
+            campaign.contacts[pendingContactIndex].error = 'WhatsApp disconnected during send';
+            campaign.progress.failed += 1;
+          }
+        } else {
+          campaign.contacts[pendingContactIndex].status = 'failed';
+          campaign.contacts[pendingContactIndex].error = err.message;
+          campaign.progress.failed += 1;
+        }
       }
 
       await campaign.save();
