@@ -235,7 +235,7 @@ async function startWhatsAppSession(tenantId, io) {
     });
 
     sock.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type === 'notify' || type === 'append') {
+      if (type === 'notify') {
         await handleIncomingMessages(messages, tenantId, sock, io);
       }
     });

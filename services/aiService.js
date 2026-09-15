@@ -88,7 +88,12 @@ Example: "Aww rest karlo thoda ji! 🌸 [UPDATE_MOOD: SAD_TIRED | User mentioned
 The system will automatically extract and save the updated mood!`;
 
     if (tenant && tenant.botPrompt) {
-      systemPrompt += `\n\n[GLOBAL BUSINESS RULE]\n${tenant.botPrompt}`;
+      systemPrompt += `\n\n[GLOBAL BUSINESS RULE / CAMPAIGN INSTRUCTIONS]\n${tenant.botPrompt}
+
+⚠️ CRITICAL CONVERSATION FLOW RULE (ONE-TIME GREETING ONLY):
+- If your prompt contains initial festival/event greetings (e.g. "Happy Engineers' Day!", "Happy Diwali!"), you must GREET ONLY ONCE in the very first message.
+- Inspect the previous chat history above. If you or the user have ALREADY greeted each other in earlier messages, DO NOT repeat the "Happy Engineers' Day" or introductory greeting again!
+- Instead, directly answer their questions, continue the natural conversation, solve their doubts, or share the link if they showed interest.`;
     }
 
     if (tenant && tenant.knowledgeBaseText) {

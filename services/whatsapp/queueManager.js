@@ -358,6 +358,24 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             for (let i = 0; i < chunks.length; i++) {
               const chunk = chunks[i];
               
+              // 💬 Per-Chunk Dynamic Typing Indicator based on Word Count & Char Length
+              await sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+              if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: true });
+
+              // Calculate typing duration dynamically based on words & length:
+              // Average human typing speed = 40-50 WPM (~250-300ms per word or ~40-60ms per char)
+              const wordCount = chunk.split(/\s+/).filter(Boolean).length;
+              const charCount = chunk.length;
+              
+              // Base typing calculation: 250ms per word + 35ms per character, plus randomized variation (+/- 15%)
+              const rawTypingMs = Math.round((wordCount * 220) + (charCount * 30));
+              const randomFactor = 0.85 + (Math.random() * 0.30); // 0.85 to 1.15 multiplier
+              const chunkTypingMs = Math.max(600, Math.min(Math.round(rawTypingMs * randomFactor), 7000));
+              
+              console.log(`[Dynamic Typing Simulator] Chunk ${i+1}/${chunks.length} | Words: ${wordCount} | Chars: ${charCount} | Typing Time: ${chunkTypingMs}ms`);
+              await randomDelay(chunkTypingMs, chunkTypingMs + 100);
+
+              // Pause typing right before sending
               await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
               if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: false });
 
@@ -378,8 +396,14 @@ async function processQueue(tenantId, remoteJid, sock, io) {
 
               console.log(`[Tenant ${tenantId}] Replied to ${remoteJid}: Chunk ${i+1}/${chunks.length}`);
               
+              // Dynamic Inter-Message Gap: Gap depends on length of NEXT message (thinking/composing time)
               if (i < chunks.length - 1) {
-                await randomDelay(500, 1000);
+                const nextChunk = chunks[i + 1];
+                const nextWordCount = nextChunk.split(/\s+/).filter(Boolean).length;
+                // Gap = base 800ms + 150ms per word in next chunk (e.g. 10 words next => ~2.3 sec gap)
+                const dynamicGapMs = Math.max(800, Math.min(800 + (nextWordCount * 150) + Math.floor(Math.random() * 400), 4000));
+                console.log(`[Dynamic Inter-Message Gap] Waiting ${dynamicGapMs}ms before typing chunk ${i+2}...`);
+                await randomDelay(dynamicGapMs, dynamicGapMs + 100);
               }
             }
           }
