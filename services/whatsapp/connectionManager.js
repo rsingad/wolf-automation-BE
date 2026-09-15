@@ -81,12 +81,12 @@ async function startWhatsAppSession(tenantId, io) {
           return;
         }
 
-        // Handle Code 401 (Logged Out / Corrupted Credentials)
-        if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
-          console.error(`[Tenant ${tenantId}] Logged out (Code 401). Clearing MongoDB auth keys...`);
+        // Handle Code 401 / 403 / 405 (Logged Out / Banned / Invalid Device Session Credentials)
+        if (statusCode === 401 || statusCode === 403 || statusCode === 405 || statusCode === DisconnectReason.loggedOut) {
+          console.error(`[Tenant ${tenantId}] Session invalidated or logged out (Reason Code: ${statusCode}). Clearing MongoDB auth keys...`);
           await clearState();
           io.to(tenantId).emit('connection-status', { status: 'logged_out' });
-          io.to(tenantId).emit('console-log', 'Session permanently logged out. MongoDB auth keys cleaned. Please scan new QR.');
+          io.to(tenantId).emit('console-log', `Session invalidated by WhatsApp (Code ${statusCode}). MongoDB auth keys cleaned. Please scan new QR code.`);
           return;
         }
 
