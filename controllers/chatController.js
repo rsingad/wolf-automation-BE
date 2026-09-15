@@ -116,7 +116,9 @@ exports.sendManualMessage = async (req, res) => {
       messageId: sentMsg.key.id
     });
 
-    // Save outbound message to DB
+    const { getIo } = require('../config/socket');
+    const io = getIo();
+    if (io) io.to(tenantId.toString()).emit('new-message', { customerId: customer._id, message: outboundMsg });
 
     res.status(200).json({ success: true, message: outboundMsg });
   } catch (error) {
