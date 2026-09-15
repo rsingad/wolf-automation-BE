@@ -25,12 +25,12 @@ function getCleanName(rawName) {
 const activeProcessors = new Set();
 
 async function startCampaignProcessor(tenantId) {
-  if (activeProcessors.has(tenantId)) return;
-  activeProcessors.add(tenantId);
-
-  console.log(`[Campaign Processor] Started for tenant ${tenantId}`);
+  console.log(`[Campaign Processor] Triggered processor for tenant ${tenantId}`);
 
   try {
+    // Force activeProcessors tracking per execution
+    activeProcessors.add(tenantId.toString());
+
     while (true) {
       // 1. Find the currently running campaign (oldest first)
       let campaign = await Campaign.findOne({ tenantId, status: 'running' }).sort({ createdAt: 1 });
@@ -41,7 +41,7 @@ async function startCampaignProcessor(tenantId) {
         if (campaign) {
           campaign.status = 'running';
           await campaign.save();
-          console.log(`[Campaign Processor] Promoted queued campaign "${campaign.name}" (${campaign._id}) to RUNNING!`);
+          console.log(`[Campaign Processor] 🔥 Promoted queued campaign "${campaign.name}" (${campaign._id}) to RUNNING!`);
           const { getIo } = require('../../config/socket');
           const io = getIo();
           if (io) io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
@@ -50,7 +50,7 @@ async function startCampaignProcessor(tenantId) {
 
       if (!campaign) {
         // No running or pending campaigns, exit the loop
-        activeProcessors.delete(tenantId);
+        activeProcessors.delete(tenantId.toString());
         console.log(`[Campaign Processor] Stopped for tenant ${tenantId} (No running/pending campaigns in queue)`);
         return;
       }
@@ -58,16 +58,17 @@ async function startCampaignProcessor(tenantId) {
       const sock = connectionManager.getActiveSession(tenantId);
       if (!sock) {
         console.log(`[Campaign Processor] WhatsApp session not active. Pausing processor.`);
-        activeProcessors.delete(tenantId);
+        activeProcessors.delete(tenantId.toString());
         return; // Pause processing if WhatsApp disconnects
       }
 
-      // 🌙 IQ200 NIGHT-TIME ANTI-SPAM LOCK (10 PM to 8 AM)
-      const currentHour = new Date().getHours();
+      // 🌙 IQ200 NIGHT-TIME ANTI-SPAM LOCK (10 PM to 8 AM IST)
+      const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
+      const currentHour = nowIST.getHours();
       if (currentHour >= 22 || currentHour < 8) {
-        console.log(`[Campaign Processor] 🌙 Night-Time Anti-Spam Lock active (${currentHour}:00 hrs). Pausing broadcast until 8:00 AM to protect account reputation.`);
-        // Sleep for 15 minutes before checking time again without crashing processor
-        await randomDelay(900000, 900000);
+        console.log(`[Campaign Processor] 🌙 Night-Time Anti-Spam Lock active (${currentHour}:00 hrs IST). Pausing broadcast until 8:00 AM IST to protect account reputation.`);
+        // Sleep for 5 minutes before checking time again
+        await randomDelay(300000, 300000);
         continue;
       }
 
@@ -196,9 +197,22 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
           messageText = aiRes;
         }
       } catch (aiErr) {
-        console.warn(`[Campaign] ⚠️ Groq AI API Notice for ${phone}: ${aiErr.message}. Falling back to clean template substitution so campaign continues uninterrupted!`);
-        // Use clean template fallback directly without pausing campaign!
-        messageText = campaign.template.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
+        console.error(`[Campaign] 🚨 Groq AI API Error for ${phone}: ${aiErr.message}`);
+        
+        // Mark contact status as 'failed' so it appears in Failed count on Dashboard and user can Retry anytime!
+        campaign.contacts[pendingContactIndex].status = 'failed';
+        campaign.contacts[pendingContactIndex].error = `Groq AI API Quota/Key Error: ${aiErr.message}`;
+        campaign.progress.failed += 1;
+        await campaign.save();
+
+        const { getIo } = require('../../config/socket');
+        const io = getIo();
+        if (io) {
+          io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+        }
+
+        // Move to next contact in loop
+        continue;
       }
 
       // 🛡️ ANTI-BAN SHIELD 1: Check for URLs & 2-Step Broadcast logic
