@@ -25,6 +25,7 @@ const customerSchema = new mongoose.Schema({
   lastResponseReason: { type: String, default: 'AI active & ready to respond' },
   autoPauseOnManual: { type: Boolean, default: true }, // Auto-pause AI when agent types manually
   isBlacklisted: { type: Boolean, default: false }, // Exclude/Blacklist from Campaign Broadcasts
+  pendingFollowupLink: { type: String, default: '' }, // 2-Step Anti-Ban Shield: Link to send on customer reply
   isGroup: { type: Boolean, default: false },
   groupMetadata: { type: Object }, // Store group members/info
   deviceType: { type: String, default: 'unknown' }, // 'ios', 'android', 'web', 'unknown'

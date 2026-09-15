@@ -62,6 +62,15 @@ async function startCampaignProcessor(tenantId) {
         return; // Pause processing if WhatsApp disconnects
       }
 
+      // 🌙 IQ200 NIGHT-TIME ANTI-SPAM LOCK (10 PM to 8 AM)
+      const currentHour = new Date().getHours();
+      if (currentHour >= 22 || currentHour < 8) {
+        console.log(`[Campaign Processor] 🌙 Night-Time Anti-Spam Lock active (${currentHour}:00 hrs). Pausing broadcast until 8:00 AM to protect account reputation.`);
+        // Sleep for 15 minutes before checking time again without crashing processor
+        await randomDelay(900000, 900000);
+        continue;
+      }
+
       // Check Anti-Ban Warmup Daily Quota Limit
       const { getTenantWarmupStatus, recordOutboundMessage } = require('../accountWarmupService');
       const warmup = await getTenantWarmupStatus(tenantId);
@@ -201,6 +210,39 @@ Rules:
         return; // Pause execution immediately!
       }
 
+      // 🛡️ ANTI-BAN SHIELD 1: Check for URLs & 2-Step Broadcast logic
+      let extractedUrl = '';
+      const urlRegex = /(https?:\/\/[^\s]+)/gi;
+      const urlMatches = messageText.match(urlRegex);
+
+      if (urlMatches && urlMatches.length > 0) {
+        extractedUrl = urlMatches[0];
+      }
+
+      // Find or create Customer to check previous interaction history
+      let cust = await Customer.findOne({ tenantId, whatsappNumber: remoteJid });
+      if (!cust) {
+        cust = await Customer.create({ tenantId, whatsappNumber: remoteJid, name: contact.name || phone });
+      }
+
+      // If 2-Step Shield is ENABLED (default true) and message has a URL link:
+      if (campaign.enableTwoStepShield !== false && extractedUrl) {
+        // Strip URL from initial broadcast message to avoid WhatsApp automated link spam detection
+        messageText = messageText.replace(urlRegex, '').trim();
+        // Clean up any double spaces or dangling pointers
+        messageText = messageText.replace(/👉\s*$/g, '').replace(/:\s*$/g, '.').trim();
+
+        // Save URL in customer.pendingFollowupLink so AI sends it on reply!
+        cust.pendingFollowupLink = extractedUrl;
+        await cust.save();
+        console.log(`[Anti-Ban Shield] 🛡️ Stripped URL from cold broadcast for ${phone}. Saved pending link: ${extractedUrl}`);
+      }
+
+      // 🛡️ ANTI-BAN SHIELD 2: Auto Opt-Out Footer
+      if (campaign.autoOptOutFooter !== false && !messageText.toLowerCase().includes('stop')) {
+        messageText += `\n\n_(Reply STOP to opt out)_`;
+      }
+
       try {
         console.log(`[Campaign] Dispatching message for ${phone}:\n${messageText}`);
         
@@ -251,9 +293,8 @@ Rules:
         campaign.contacts[pendingContactIndex].status = 'sent';
         campaign.progress.sent += 1;
 
-        // Create Customer and Message in DB for history
-        let cust = await Customer.findOne({ tenantId, whatsappNumber: remoteJid });
-        if (!cust) cust = await Customer.create({ tenantId, whatsappNumber: remoteJid, name: contact.name || phone });
+        // Ensure customer record updated
+        if (!cust) cust = await Customer.findOne({ tenantId, whatsappNumber: remoteJid });
         
         await Message.create({
           tenantId,

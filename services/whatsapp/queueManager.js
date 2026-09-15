@@ -148,6 +148,29 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           continue;
         }
 
+        // 🛑 AUTOMATED OPT-OUT (STOP KEYWORD) HANDLER
+        const optOutKeywords = ['stop', 'unsubscribe', 'mat bhejo', 'band karo', 'hatao', 'remove me'];
+        if (optOutKeywords.some(kw => trimmedText.toLowerCase() === kw || trimmedText.toLowerCase().startsWith(`${kw} `))) {
+          console.log(`[Queue] 🛑 Opt-out keyword detected from ${customer.name || remoteJid}. Blacklisting and unsubscribing.`);
+          customer.isBlacklisted = true;
+          customer.aiPaused = true;
+          customer.aiStatusState = 'PAUSED_MANUAL';
+          customer.lastResponseReason = '🛑 User requested Opt-Out / STOP';
+          await customer.save();
+
+          const stopMsgText = "Aapko hamari broadcast list se remove kar diya gaya hai. Ab aapko koi promotional message nahi aayega. Thank you! 🙏";
+          const sentStop = await sock.sendMessage(remoteJid, { text: stopMsgText });
+          await Message.create({
+            tenantId,
+            customerId: customer._id,
+            sender: 'bot',
+            content: stopMsgText,
+            messageId: sentStop.key.id
+          });
+          if (io) io.to(tenantId).emit('customer-updated', customer);
+          continue;
+        }
+
         // ⏱️ 5-MINUTE AUTO-RESUME TIMER CHECK FOR MANUAL MESSAGES
         if (customer.aiPaused && customer.aiPausedUntil) {
           const now = new Date();
@@ -253,6 +276,11 @@ async function processQueue(tenantId, remoteJid, sock, io) {
 
             let inputMessage = textContent;
             
+            // 🛡️ 2-STEP ANTI-BAN LINK INJECTION ON CUSTOMER REPLY
+            if (customer.pendingFollowupLink) {
+              inputMessage += ` [SYSTEM NOTE: User responded to campaign! Smoothly and naturally share the website link: ${customer.pendingFollowupLink}]`;
+            }
+
             // 💡 QUOTED REPLY HIERARCHY INJECTION FOR AI REASONING
             if (mediaOpts && mediaOpts.quotedContent) {
               inputMessage = `[USER IS SPECIFICALLY REPLYING TO THIS MESSAGE: "${mediaOpts.quotedContent}"] -> USER SAYS: "${textContent}"`;
@@ -267,6 +295,12 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             aiReply = await generateAIResponse(tenantId, customer._id, inputMessage);
             const aiElapsedTimeMs = Date.now() - aiCallStartTime;
             console.log(`[IQ200 Engine] AI Generation took ${aiElapsedTimeMs}ms.`);
+
+            // Clear pendingFollowupLink now that AI processed it
+            if (customer.pendingFollowupLink) {
+              customer.pendingFollowupLink = '';
+              await customer.save();
+            }
 
             // 🧠 IQ200 ADAPTIVE DYNAMIC DELAY BALANCER:
             // Target realistic human typing time based on message length (e.g. 1500ms to 3500ms)

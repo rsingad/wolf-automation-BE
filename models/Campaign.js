@@ -13,6 +13,10 @@ const campaignSchema = new mongoose.Schema({
   template: { type: String, required: true },
   mediaUrl: { type: String, default: '' }, // Photo / Image attachment URL or path
   safetyMode: { type: String, enum: ['safe', 'balanced', 'fast'], default: 'safe' }, // Anti-ban speed mode
+  enableTwoStepShield: { type: Boolean, default: true }, // 2-Step Anti-Ban Shield (Strips URLs from cold 1st broadcast)
+  autoOptOutFooter: { type: Boolean, default: true }, // Automatically append (Reply STOP to opt out)
+  batchSplitSize: { type: Number, default: 0 }, // If > 0, auto-split large contact lists into mini queued batches
+  promptVariationMode: { type: Boolean, default: true }, // Auto variation of AI prompt per batch
   dripNodes: [{
     template: { type: String, required: true },
     delayHours: { type: Number, required: true }

@@ -4,7 +4,7 @@ const Customer = require('../models/Customer');
 const Message = require('../models/Message');
 
 const openai = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_startup',
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
@@ -337,6 +337,29 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
         console.log(`[AI Auto-Memory] Saved new fact for ${customer.name || customer._id}: ${newFact}`);
       } catch (memErr) {
         console.error('[AI Auto-Memory Error]', memErr.message);
+      }
+    }
+
+    // 🏷️ Auto-extract [SET_TAG: HOT LEAD / COMPLAINT / SUPPORT / SPAM] tag
+    const tagMatch = aiReply.match(/\[SET_TAG:\s*([A-Z_\s]+)\]/i);
+    if (tagMatch && customer) {
+      const detectedTag = tagMatch[1].toUpperCase().trim();
+      aiReply = aiReply.replace(/\[SET_TAG:\s*[^\]]+\]/gi, '').trim();
+      const validTags = ['HOT LEAD', 'COMPLAINT', 'SUPPORT', 'GENERAL', 'SPAM'];
+      if (validTags.includes(detectedTag)) {
+        try {
+          const updatedCust = await Customer.findByIdAndUpdate(customer._id, { aiTag: detectedTag }, { returnDocument: 'after' });
+          console.log(`[AI Auto-Tag] 🏷️ Customer ${customer.name || customer._id} tagged as: ${detectedTag}`);
+          if (customer.tenantId) {
+            try {
+              const { getIo } = require('../config/socket');
+              const ioInstance = getIo();
+              if (ioInstance) ioInstance.to(customer.tenantId.toString()).emit('customer-updated', updatedCust);
+            } catch (sErr) {}
+          }
+        } catch (tErr) {
+          console.error('[AI Auto-Tag Error]', tErr.message);
+        }
       }
     }
 

@@ -4,7 +4,7 @@ const os = require('os');
 const { OpenAI } = require('openai');
 
 const openai = new OpenAI({
-  apiKey: process.env.GROQ_API_KEY,
+  apiKey: process.env.GROQ_API_KEY || 'dummy_key_for_startup',
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
