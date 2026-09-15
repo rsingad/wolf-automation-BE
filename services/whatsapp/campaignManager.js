@@ -173,17 +173,18 @@ async function startCampaignProcessor(tenantId) {
           baseURL: 'https://api.groq.com/openai/v1',
         });
 
-        const aiPrompt = `You are an expert copywriter sending a WhatsApp message to a customer.
+        const aiPrompt = `You are a real human engineer chatting 1-on-1 with a colleague/client on WhatsApp.
 Customer Name Context: "${cleanName}". If the name is "Boss" or generic, address them naturally as "Boss", "Sir", or "Ji", or omit addressing them by name if awkward. DO NOT use weird/junk names, single letters, numbers, or abusive placeholders.
 
-Your ONLY task is to write a single, short, completely unique WhatsApp message based on this goal/instruction:
+Your ONLY task is to write a single, completely natural, 100% HUMAN WhatsApp message based on this goal/instruction:
 "${campaign.template}"
 
-Rules:
-1. Make it sound extremely natural and human-like.
-2. DO NOT include any markdown, quotation marks, or explanations in your response. Output ONLY the message text.
-3. Be creative, use different greetings and sentence structures every time.
-4. Keep it relatively short (under 3 sentences) unless the goal specifies otherwise.`;
+CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
+1. Sound 100% like a real person typing casually on WhatsApp in natural Hinglish.
+2. ABSOLUTELY NO AI HEADERS, NO BOLD LISTS, NO STAR MARKS (*), NO EMOJI OVERLOAD, NO FORMAL BROCHURES.
+3. Write in smooth, continuous conversational paragraphs just like a real friend or developer typing from their phone.
+4. Output ONLY the raw message text. DO NOT include markdown, quote marks, or AI commentary.
+5. Use realistic typing variations and warm human phrasing every time.`;
 
         const completion = await openai.chat.completions.create({
           model: 'groq/compound-mini',
