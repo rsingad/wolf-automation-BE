@@ -79,9 +79,11 @@ async function startCampaignProcessor(tenantId) {
       if (warmup.dailyRemaining <= 0) {
         console.log(`[Campaign Processor] 🛡️ Anti-Ban Daily Limit Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs) for tenant ${tenantId}. Pausing campaign.`);
         campaign.status = 'paused';
+        campaign.pauseReason = `🛡️ Anti-Ban Daily Quota Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs/day). Resumes tomorrow at 12:00 AM.`;
         await campaign.save();
         const { getIo } = require('../../config/socket');
         const io = getIo();
+        if (io) io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
         if (io) io.to(tenantId.toString()).emit('warmup-limit-reached', { warmup, campaignId: campaign._id });
         activeProcessors.delete(tenantId);
         return;
