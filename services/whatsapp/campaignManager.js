@@ -113,7 +113,7 @@ async function startCampaignProcessor(tenantId) {
       if (phone.length === 10) {
         phone = `91${phone}`;
       }
-      const remoteJid = `${phone}@s.whatsapp.net`;
+      let remoteJid = `${phone}@s.whatsapp.net`;
 
       // Check if contact is blacklisted by user (Excluded from Campaigns)
       const Customer = require('../../models/Customer');
@@ -146,6 +146,12 @@ async function startCampaignProcessor(tenantId) {
       }
 
       const existsOnWa = Array.isArray(whatsappCheck) && whatsappCheck.length > 0 && whatsappCheck[0]?.exists;
+      
+      // 🧠 Ensure exact JID returned by WhatsApp (e.g. valid @s.whatsapp.net format)
+      if (existsOnWa && whatsappCheck[0].jid) {
+        remoteJid = whatsappCheck[0].jid;
+      }
+
       if (!existsOnWa) {
         console.log(`[Campaign] ⚠️ Number ${phone} is NOT on WhatsApp. Marking as ignored.`);
         campaign.contacts[pendingContactIndex].status = 'ignored';
