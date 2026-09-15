@@ -196,19 +196,9 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
           messageText = aiRes;
         }
       } catch (aiErr) {
-        console.error(`[Campaign] 🚨 AI API Error for ${phone}: ${aiErr.message}. AUTO-PAUSING CAMPAIGN!`);
-        campaign.status = 'paused';
-        campaign.pauseReason = `AI Model Error: ${aiErr.message}`;
-        await campaign.save();
-        
-        const { getIo } = require('../../config/socket');
-        const io = getIo();
-        if (io) {
-          io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
-        }
-        
-        activeProcessors.delete(tenantId);
-        return; // Pause execution immediately!
+        console.warn(`[Campaign] ⚠️ Groq AI API Notice for ${phone}: ${aiErr.message}. Falling back to clean template substitution so campaign continues uninterrupted!`);
+        // Use clean template fallback directly without pausing campaign!
+        messageText = campaign.template.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
       }
 
       // 🛡️ ANTI-BAN SHIELD 1: Check for URLs & 2-Step Broadcast logic
