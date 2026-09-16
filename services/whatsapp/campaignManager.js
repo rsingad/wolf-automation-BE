@@ -369,28 +369,34 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
       }
 
+      // Re-fetch fresh campaign settings from DB so mid-campaign speed/prompt updates reflect IMMEDIATELY without waiting for next loop!
+      const freshCampaign = await Campaign.findById(campaign._id);
+      const currentSafetyMode = freshCampaign ? freshCampaign.safetyMode : campaign.safetyMode;
+      const currentMinSec = freshCampaign ? freshCampaign.customDelayMinSeconds : campaign.customDelayMinSeconds;
+      const currentMaxSec = freshCampaign ? freshCampaign.customDelayMaxSeconds : campaign.customDelayMaxSeconds;
+
       // Anti-ban delay based on selected safety mode
       let minDelay = 45000; // Default Safe Mode: 45s to 90s per msg
       let maxDelay = 90000;
       
-      if (campaign.safetyMode === 'custom') {
-        minDelay = (campaign.customDelayMinSeconds || 15) * 1000;
-        maxDelay = (campaign.customDelayMaxSeconds || 40) * 1000;
-      } else if (campaign.safetyMode === 'fast') {
+      if (currentSafetyMode === 'custom') {
+        minDelay = (currentMinSec || 15) * 1000;
+        maxDelay = (currentMaxSec || 40) * 1000;
+      } else if (currentSafetyMode === 'fast') {
         minDelay = 8000;  // 8s - 15s
         maxDelay = 15000;
-      } else if (campaign.safetyMode === 'balanced') {
+      } else if (currentSafetyMode === 'balanced') {
         minDelay = 20000; // 20s - 40s
         maxDelay = 40000;
-      } else if (campaign.safetyMode === 'safe') {
+      } else if (currentSafetyMode === 'safe') {
         minDelay = 45000; // 45s - 90s
         maxDelay = 90000;
-      } else if (campaign.safetyMode === 'stealth') {
+      } else if (currentSafetyMode === 'stealth') {
         minDelay = 120000; // 2 mins - 4 mins
         maxDelay = 240000;
       }
 
-      console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${campaign.safetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
+      console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${currentSafetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
       await randomDelay(minDelay, maxDelay);
     }
   } catch (error) {
