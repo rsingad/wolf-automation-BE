@@ -167,9 +167,13 @@ async function startCampaignProcessor(tenantId) {
         continue; // Skip to next contact immediately
       }
 
+      // Re-fetch fresh campaign template prompt from database so mid-campaign prompt edits apply IMMEDIATELY to the next contact!
+      const currentCampaignDoc = await Campaign.findById(campaign._id);
+      const activeTemplatePrompt = (currentCampaignDoc && currentCampaignDoc.template) ? currentCampaignDoc.template : campaign.template;
+
       // Fallback: Default to raw campaign template with clean name substitution in case Groq AI fails
       const cleanName = getCleanName(contact.name);
-      let messageText = campaign.template.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
+      let messageText = activeTemplatePrompt.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
 
       try {
         const { OpenAI } = require('openai');
@@ -182,7 +186,7 @@ async function startCampaignProcessor(tenantId) {
 Customer Name Context: "${cleanName}". If the name is "Boss" or generic, address them naturally as "Boss", "Sir", or "Ji", or omit addressing them by name if awkward. DO NOT use weird/junk names, single letters, numbers, or abusive placeholders.
 
 Your ONLY task is to write a single, completely natural, 100% HUMAN WhatsApp message based on this goal/instruction:
-"${campaign.template}"
+"${activeTemplatePrompt}"
 
 CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
 1. Sound 100% like a real person typing casually on WhatsApp in natural Hinglish.
