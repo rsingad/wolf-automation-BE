@@ -81,6 +81,33 @@ exports.updateSettings = async (req, res) => {
       }
     }
 
+    // 📜 Prompt & Knowledge Base History Tracking Logic
+    const PromptHistory = require('../models/PromptHistory');
+
+    if (tenant) {
+      if (updateData.botPrompt && updateData.botPrompt.trim() !== (tenant.botPrompt || '').trim()) {
+        await PromptHistory.create({
+          tenantId: tenant._id,
+          type: 'botPrompt',
+          title: `Bot Prompt Version (${new Date().toLocaleString()})`,
+          content: updateData.botPrompt,
+          charCount: updateData.botPrompt.length,
+          isActive: true
+        });
+      }
+
+      if (updateData.knowledgeBaseText && updateData.knowledgeBaseText.trim() !== (tenant.knowledgeBaseText || '').trim()) {
+        await PromptHistory.create({
+          tenantId: tenant._id,
+          type: 'knowledgeBaseText',
+          title: `RAG Vault Version (${new Date().toLocaleString()})`,
+          content: updateData.knowledgeBaseText,
+          charCount: updateData.knowledgeBaseText.length,
+          isActive: true
+        });
+      }
+    }
+
     if (tenant && updateData.aiAutoReplyDisabled !== undefined) {
       const Customer = require('../models/Customer');
       await Customer.updateMany(
@@ -121,6 +148,37 @@ exports.updateSettings = async (req, res) => {
   } catch (error) {
     console.error('Error updating tenant settings:', error);
     res.status(500).json({ error: 'Server error' });
+  }
+};
+
+// 📜 Get Prompt & Knowledge Base History Logs
+exports.getPromptHistory = async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { type } = req.query; // 'botPrompt' | 'knowledgeBaseText'
+
+    const PromptHistory = require('../models/PromptHistory');
+    const query = { tenantId };
+    if (type) query.type = type;
+
+    const history = await PromptHistory.find(query).sort({ createdAt: -1 }).limit(50);
+    res.status(200).json({ success: true, history });
+  } catch (error) {
+    console.error('Error fetching prompt history:', error);
+    res.status(500).json({ error: 'Failed to fetch prompt history' });
+  }
+};
+
+// 📜 Delete Prompt History Item
+exports.deletePromptHistoryItem = async (req, res) => {
+  try {
+    const { historyId } = req.params;
+    const PromptHistory = require('../models/PromptHistory');
+    await PromptHistory.findByIdAndDelete(historyId);
+    res.status(200).json({ success: true, message: 'History record deleted' });
+  } catch (error) {
+    console.error('Error deleting prompt history item:', error);
+    res.status(500).json({ error: 'Failed to delete history item' });
   }
 };
 
