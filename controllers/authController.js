@@ -141,9 +141,31 @@ exports.impersonateTenant = async (req, res) => {
       },
       message: `🔑 Impersonation active: Logged into ${tenant.name} (${tenant.email})`
     });
+// Get Current Tenant Profile (Fresh DB Balance Sync)
+exports.getMe = async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    if (!tenantId) return res.status(400).json({ error: 'Tenant ID is required' });
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) return res.status(404).json({ error: 'Tenant not found' });
+
+    res.status(200).json({
+      success: true,
+      tenant: {
+        _id: tenant._id,
+        name: tenant.name,
+        email: tenant.email,
+        role: tenant.role || 'tenant',
+        isFrozen: tenant.isFrozen || false,
+        freezeReason: tenant.freezeReason || '',
+        accountLevel: tenant.accountLevel || 1,
+        wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000
+      }
+    });
   } catch (error) {
-    console.error('Impersonation error:', error);
-    res.status(500).json({ error: 'Server error during master login' });
+    console.error('Error fetching current profile:', error);
+    res.status(500).json({ error: 'Failed to fetch current user profile' });
   }
 };
 

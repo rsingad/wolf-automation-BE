@@ -127,12 +127,13 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           io.to(tenantId).emit('new-message', { customerId: customer._id, message: incomingMsg });
         }
 
-        // 3. Realistic Read Receipts Flow (Ghost Mode Check)
+        // 3. Realistic Read Receipts Flow (Human Reading Delay of 1.5s to 3.5s)
         if (!tenant || !tenant.ghostMode) {
-          await randomDelay(200, 500);
+          // Human Thinking/Reading Delay: Wait 1.5s - 3.5s before opening chat & marking read!
+          await randomDelay(1500, 3500);
           await sock.sendPresenceUpdate('available');
           await sock.readMessages([messageKey]);
-          await randomDelay(200, 500);
+          await randomDelay(800, 1500);
         } else {
           console.log(`[Tenant ${tenantId}] 👻 Ghost Mode Active: Skipped reading message from ${remoteJid}`);
         }

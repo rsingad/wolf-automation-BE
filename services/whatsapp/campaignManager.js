@@ -62,15 +62,7 @@ async function startCampaignProcessor(tenantId) {
         return; // Pause processing if WhatsApp disconnects
       }
 
-      // 🌙 IQ200 NIGHT-TIME ANTI-SPAM LOCK (10 PM to 8 AM IST)
-      const nowIST = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Kolkata' }));
-      const currentHour = nowIST.getHours();
-      if (currentHour >= 22 || currentHour < 8) {
-        console.log(`[Campaign Processor] 🌙 Night-Time Anti-Spam Lock active (${currentHour}:00 hrs IST). Pausing broadcast until 8:00 AM IST to protect account reputation.`);
-        // Sleep for 5 minutes before checking time again
-        await randomDelay(300000, 300000);
-        continue;
-      }
+      // 🌙 24/7 Broadcast Engine: Run campaigns anytime (Day or Night) in ANY safety mode chosen by user
 
       // Check Anti-Ban Warmup Daily Quota Limit
       const { getTenantWarmupStatus, recordOutboundMessage } = require('../accountWarmupService');
