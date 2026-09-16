@@ -94,8 +94,13 @@ exports.sendManualMessage = async (req, res) => {
       console.warn('Failed to send composing presence:', e.message);
     }
     
-    // 2. Add a tiny delay to make the typing indicator visible (1.5 seconds)
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // 2. Calculate Dynamic Human Typing Delay based on word/character count (approx 40ms per letter + base 800ms)
+    // Min delay: 1.2s, Max delay: 6.5s
+    const charCount = content.trim().length;
+    const dynamicTypingMs = Math.min(6500, Math.max(1200, Math.floor(charCount * 45) + 800));
+    console.log(`[Manual Send] Message length ${charCount} chars. Dynamic Typing Delay: ${dynamicTypingMs}ms`);
+    
+    await new Promise(resolve => setTimeout(resolve, dynamicTypingMs));
 
     // 3. Send the message via Baileys
     const sentMsg = await sock.sendMessage(targetJid, { text: content });

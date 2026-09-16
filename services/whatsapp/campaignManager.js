@@ -413,6 +413,14 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
   }
 }
 
+function resetProcessorLock(tenantId) {
+  if (tenantId) {
+    activeProcessors.delete(tenantId.toString());
+    console.log(`[Campaign Processor] 🔓 Force-cleared active processor lock for tenant ${tenantId}`);
+  }
+}
+
 module.exports = {
-  startCampaignProcessor
+  startCampaignProcessor,
+  resetProcessorLock
 };

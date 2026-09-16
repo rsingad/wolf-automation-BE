@@ -118,8 +118,9 @@ exports.updateCampaignTemplate = async (req, res) => {
     const campaign = await Campaign.findByIdAndUpdate(campaignId, updateFields, { returnDocument: 'after' });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-    // 🔥 Trigger processor to wake up background loop immediately if campaign is running
+    // 🔥 Force-Clear processor memory lock & Wake up background loop immediately if campaign is running
     if (campaign.status === 'running') {
+      campaignManager.resetProcessorLock && campaignManager.resetProcessorLock(campaign.tenantId);
       campaignManager.startCampaignProcessor(campaign.tenantId);
     }
 
