@@ -4,7 +4,7 @@ const campaignManager = require('../services/whatsapp/campaignManager'); // Back
 exports.createCampaign = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { name, template, mediaUrl, safetyMode, dripNodes, contacts, batchSplitSize, enableTwoStepShield, autoOptOutFooter } = req.body;
+    const { name, template, mediaUrl, safetyMode, customDelayMinSeconds, customDelayMaxSeconds, dripNodes, contacts, batchSplitSize, enableTwoStepShield, autoOptOutFooter } = req.body;
 
     // Validate
     if (!name || !template || !contacts || contacts.length === 0) {
@@ -33,6 +33,8 @@ exports.createCampaign = async (req, res) => {
         template,
         mediaUrl: mediaUrl || '',
         safetyMode: safetyMode || 'safe',
+        customDelayMinSeconds: parseInt(customDelayMinSeconds) || 15,
+        customDelayMaxSeconds: parseInt(customDelayMaxSeconds) || 40,
         enableTwoStepShield: enableTwoStepShield !== false,
         autoOptOutFooter: autoOptOutFooter !== false,
         batchSplitSize: chunkSize,
@@ -104,23 +106,23 @@ exports.resumeCampaign = async (req, res) => {
 exports.updateCampaignTemplate = async (req, res) => {
   try {
     const { campaignId } = req.params;
-    const { template, name } = req.body;
-    
-    if (!template || !template.trim()) {
-      return res.status(400).json({ error: 'Template cannot be empty' });
-    }
+    const { template, name, safetyMode, customDelayMinSeconds, customDelayMaxSeconds } = req.body;
 
-    const updateFields = { template: template.trim() };
+    const updateFields = {};
+    if (template && template.trim()) updateFields.template = template.trim();
     if (name && name.trim()) updateFields.name = name.trim();
+    if (safetyMode) updateFields.safetyMode = safetyMode;
+    if (customDelayMinSeconds !== undefined) updateFields.customDelayMinSeconds = parseInt(customDelayMinSeconds) || 10;
+    if (customDelayMaxSeconds !== undefined) updateFields.customDelayMaxSeconds = parseInt(customDelayMaxSeconds) || 30;
 
     const campaign = await Campaign.findByIdAndUpdate(campaignId, updateFields, { returnDocument: 'after' });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-    console.log(`[Campaign Controller] 📝 Mid-Campaign Template updated for campaign "${campaign.name}" (${campaign._id})`);
-    res.status(200).json({ success: true, message: 'Campaign prompt updated successfully for remaining contacts!', campaign });
+    console.log(`[Campaign Controller] 📝 Mid-Campaign Settings updated for campaign "${campaign.name}" (${campaign._id})`);
+    res.status(200).json({ success: true, message: 'Campaign settings & speed updated successfully!', campaign });
   } catch (err) {
     console.error('Error updating campaign template:', err);
-    res.status(500).json({ error: 'Failed to update campaign prompt' });
+    res.status(500).json({ error: 'Failed to update campaign settings' });
   }
 };
 

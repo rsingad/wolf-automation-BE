@@ -370,24 +370,27 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       }
 
       // Anti-ban delay based on selected safety mode
-      let minDelay = 250000; // Default Ultra Stealth: ~4 to 6 hours for 50 msgs (250s - 450s per msg)
-      let maxDelay = 450000;
+      let minDelay = 45000; // Default Safe Mode: 45s to 90s per msg
+      let maxDelay = 90000;
       
-      if (campaign.safetyMode === 'fast') {
-        minDelay = 8000;
+      if (campaign.safetyMode === 'custom') {
+        minDelay = (campaign.customDelayMinSeconds || 15) * 1000;
+        maxDelay = (campaign.customDelayMaxSeconds || 40) * 1000;
+      } else if (campaign.safetyMode === 'fast') {
+        minDelay = 8000;  // 8s - 15s
         maxDelay = 15000;
       } else if (campaign.safetyMode === 'balanced') {
-        minDelay = 15000;
-        maxDelay = 30000;
+        minDelay = 20000; // 20s - 40s
+        maxDelay = 40000;
       } else if (campaign.safetyMode === 'safe') {
-        minDelay = 45000; // Safe Mode: 45-90s
+        minDelay = 45000; // 45s - 90s
         maxDelay = 90000;
-      } else { // 'stealth' or Default Ultra Stealth (4-6 Hours for 50 msgs)
-        minDelay = 250000; // 4.1 mins min
-        maxDelay = 450000; // 7.5 mins max
+      } else if (campaign.safetyMode === 'stealth') {
+        minDelay = 120000; // 2 mins - 4 mins
+        maxDelay = 240000;
       }
 
-      console.log(`[Campaign] 🛡️ Ultra Stealth Anti-Ban (${campaign.safetyMode || 'stealth'}): Waiting ${Math.round(minDelay/1000/60)} to ${Math.round(maxDelay/1000/60)} minutes before next contact...`);
+      console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${campaign.safetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
       await randomDelay(minDelay, maxDelay);
     }
   } catch (error) {

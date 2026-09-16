@@ -40,3 +40,4 @@ logs/
 .idea/
 *.swp
 
+/test_custom_delay.js

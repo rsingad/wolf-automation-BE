@@ -59,52 +59,47 @@ exports.updateSettings = async (req, res) => {
     const updateData = req.body;
     let tenant = null;
 
+    // Find old tenant settings to check if prompt/RAG actually changed
+    const existingTenant = await Tenant.findById(tenantId);
+
+    // 📜 Prompt & Knowledge Base History Tracking Logic
+    const PromptHistory = require('../models/PromptHistory');
+
+    if (updateData.botPrompt && updateData.botPrompt.trim()) {
+      const oldPrompt = existingTenant ? (existingTenant.botPrompt || '').trim() : '';
+      if (updateData.botPrompt.trim() !== oldPrompt) {
+        await PromptHistory.create({
+          tenantId: tenantId,
+          type: 'botPrompt',
+          title: `Bot Prompt Version (${new Date().toLocaleString('en-IN')})`,
+          content: updateData.botPrompt,
+          charCount: updateData.botPrompt.length,
+          isActive: true
+        });
+        console.log(`[Prompt History] 📜 Saved new Global Prompt version for tenant ${tenantId}`);
+      }
+    }
+
+    if (updateData.knowledgeBaseText && updateData.knowledgeBaseText.trim()) {
+      const oldRAG = existingTenant ? (existingTenant.knowledgeBaseText || '').trim() : '';
+      if (updateData.knowledgeBaseText.trim() !== oldRAG) {
+        await PromptHistory.create({
+          tenantId: tenantId,
+          type: 'knowledgeBaseText',
+          title: `RAG Vault Version (${new Date().toLocaleString('en-IN')})`,
+          content: updateData.knowledgeBaseText,
+          charCount: updateData.knowledgeBaseText.length,
+          isActive: true
+        });
+        console.log(`[Prompt History] 📜 Saved new RAG Vault version for tenant ${tenantId}`);
+      }
+    }
+
     if (tenantId && tenantId !== 'undefined') {
       try {
         tenant = await Tenant.findByIdAndUpdate(tenantId, updateData, { returnDocument: 'after' });
       } catch (e) {
         tenant = null;
-      }
-    }
-
-    if (!tenant) {
-      const existing = await Tenant.findOne();
-      if (existing) {
-        tenant = await Tenant.findByIdAndUpdate(existing._id, updateData, { returnDocument: 'after' });
-      } else {
-        tenant = await Tenant.create({
-          name: 'Default Business',
-          email: 'admin@business.com',
-          password: 'password123',
-          ...updateData
-        });
-      }
-    }
-
-    // 📜 Prompt & Knowledge Base History Tracking Logic
-    const PromptHistory = require('../models/PromptHistory');
-
-    if (tenant) {
-      if (updateData.botPrompt && updateData.botPrompt.trim() !== (tenant.botPrompt || '').trim()) {
-        await PromptHistory.create({
-          tenantId: tenant._id,
-          type: 'botPrompt',
-          title: `Bot Prompt Version (${new Date().toLocaleString()})`,
-          content: updateData.botPrompt,
-          charCount: updateData.botPrompt.length,
-          isActive: true
-        });
-      }
-
-      if (updateData.knowledgeBaseText && updateData.knowledgeBaseText.trim() !== (tenant.knowledgeBaseText || '').trim()) {
-        await PromptHistory.create({
-          tenantId: tenant._id,
-          type: 'knowledgeBaseText',
-          title: `RAG Vault Version (${new Date().toLocaleString()})`,
-          content: updateData.knowledgeBaseText,
-          charCount: updateData.knowledgeBaseText.length,
-          isActive: true
-        });
       }
     }
 
@@ -158,10 +153,19 @@ exports.getPromptHistory = async (req, res) => {
     const { type } = req.query; // 'botPrompt' | 'knowledgeBaseText'
 
     const PromptHistory = require('../models/PromptHistory');
-    const query = { tenantId };
+    let query = {};
+    if (tenantId && tenantId !== 'undefined' && tenantId !== 'null') {
+      query.tenantId = tenantId;
+    }
     if (type) query.type = type;
 
-    const history = await PromptHistory.find(query).sort({ createdAt: -1 }).limit(50);
+    let history = await PromptHistory.find(query).sort({ createdAt: -1 }).limit(50);
+    
+    // Fallback if tenantId had different ObjectId format
+    if (history.length === 0 && type) {
+      history = await PromptHistory.find({ type }).sort({ createdAt: -1 }).limit(50);
+    }
+
     res.status(200).json({ success: true, history });
   } catch (error) {
     console.error('Error fetching prompt history:', error);
