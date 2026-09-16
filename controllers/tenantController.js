@@ -248,27 +248,37 @@ exports.rewardCoins = async (req, res) => {
 
     // Cap reward per game session to 5,000 WOLF Coins for anti-cheat safety
     const safeCoins = Math.min(5000, Math.round(coinsEarned));
-    tenant.wolfCoins = (tenant.wolfCoins || 500000) + safeCoins;
-    await tenant.save();
+    
+    // Create a Pending Payment/Reward Claim for Master Owner Approval
+    const paymentRecord = await Payment.create({
+      tenantId: tenant._id,
+      packageName: `3D Arcade Reward (${gameMode || 'Tap Rush'})`,
+      coinsAllocated: safeCoins,
+      amountPaidInr: 0,
+      utrNumber: `GAME-REWARD-${Date.now()}`,
+      paymentMethod: '3D Arcade Game Reward',
+      status: 'pending'
+    });
 
-    // Broadcast socket event
+    // Broadcast socket event for Master Panel approval queue
     try {
       const { getIo } = require('../config/socket');
       const io = getIo();
       if (io) {
         io.emit('analytics_updated', { tenantId: tenant._id });
+        io.emit('payment_created', { tenantId: tenant._id, payment: paymentRecord });
       }
     } catch (e) {}
 
     res.status(200).json({
       success: true,
-      newBalance: tenant.wolfCoins,
+      pending: true,
       rewardedAmount: safeCoins,
-      message: `🎉 Success! +${safeCoins.toLocaleString('en-IN')} Wolf Coins credited from 3D Game!`
+      message: `⏳ Arcade reward of +${safeCoins.toLocaleString('en-IN')} Wolf Coins submitted! It will be credited once verified by Master Admin in Control Panel.`
     });
   } catch (error) {
     console.error('Error rewarding coins:', error);
-    res.status(500).json({ error: 'Failed to credit game coins' });
+    res.status(500).json({ error: 'Failed to submit game reward claim' });
   }
 };
 

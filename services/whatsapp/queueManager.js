@@ -203,19 +203,8 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           continue;
         }
 
-        // --- ACCOUNT WARMUP & ANTI-BAN TIER CHECK ---
-        const { getTenantWarmupStatus, recordOutboundMessage } = require('../accountWarmupService');
-        const warmup = await getTenantWarmupStatus(tenantId);
-
-        if (warmup.dailyRemaining <= 0) {
-          console.log(`[Tenant ${tenantId}] 🛡️ Anti-Ban Daily Limit Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs). Pausing automated replies today to protect WhatsApp account.`);
-          customer.aiStatusState = 'SKIPPED_WARMUP_LIMIT';
-          customer.lastResponseReason = `🛡️ Anti-Ban Shield Limit Reached (${warmup.dailySent}/${warmup.dailyLimit} msgs/day)`;
-          await customer.save();
-          if (io) io.to(tenantId).emit('customer-updated', customer);
-          if (io) io.to(tenantId).emit('warmup-limit-reached', { warmup });
-          continue;
-        }
+        // 💬 Live 1-on-1 Customer Replies: UNLIMITED & UNBLOCKED (Warmup daily limit applies ONLY to Cold Campaigns)
+        const { recordOutboundMessage } = require('../accountWarmupService');
 
         // --- BUSINESS HOURS CHECK ---
         const currentHour = new Date().getHours();
@@ -363,24 +352,29 @@ async function processQueue(tenantId, remoteJid, sock, io) {
               if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: true });
 
               // Calculate typing duration dynamically based on words & length:
-              // Average human typing speed = 40-50 WPM (~250-300ms per word or ~40-60ms per char)
+              // Average human typing speed = 40-50 WPM (~220ms per word + ~30ms per char)
               const wordCount = chunk.split(/\s+/).filter(Boolean).length;
               const charCount = chunk.length;
               
-              // Base typing calculation: 250ms per word + 35ms per character, plus randomized variation (+/- 15%)
-              const rawTypingMs = Math.round((wordCount * 220) + (charCount * 30));
-              const randomFactor = 0.85 + (Math.random() * 0.30); // 0.85 to 1.15 multiplier
-              const chunkTypingMs = Math.max(600, Math.min(Math.round(rawTypingMs * randomFactor), 7000));
+              const rawTypingMs = Math.round((wordCount * 250) + (charCount * 35));
+              const randomFactor = 0.90 + (Math.random() * 0.25); // 0.90 to 1.15 multiplier
+              const chunkTypingMs = Math.max(1200, Math.min(Math.round(rawTypingMs * randomFactor), 8000));
               
-              console.log(`[Dynamic Typing Simulator] Chunk ${i+1}/${chunks.length} | Words: ${wordCount} | Chars: ${charCount} | Typing Time: ${chunkTypingMs}ms`);
+              console.log(`[Dynamic Typing Simulator] Chunk ${i+1}/${chunks.length} | Words: ${wordCount} | Chars: ${charCount} | Live Typing Status: ${chunkTypingMs}ms`);
+              
+              // Keep sending presence update every 2.5s if typing takes longer (WhatsApp presence expires after 3-5s)
+              const typingInterval = setInterval(() => {
+                sock.sendPresenceUpdate('composing', remoteJid).catch(() => {});
+              }, 2500);
+
               await randomDelay(chunkTypingMs, chunkTypingMs + 100);
+              clearInterval(typingInterval);
 
               // Pause typing right before sending
               await sock.sendPresenceUpdate('paused', remoteJid).catch(() => {});
               if (io) io.to(tenantId).emit('bot-typing', { customerId: customer._id, isTyping: false });
 
               const sentMsg = await sock.sendMessage(remoteJid, { text: chunk });
-              await recordOutboundMessage(tenantId);
 
               const outboundMsg = await Message.create({
                 tenantId,

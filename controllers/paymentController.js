@@ -108,6 +108,7 @@ exports.approvePaymentAdmin = async (req, res) => {
         const tenantRoom = payment.tenantId.toString();
         io.to(tenantRoom).emit('analytics_updated', { tenantId: payment.tenantId });
         io.to(tenantRoom).emit('payment_updated', { tenantId: payment.tenantId, paymentId: payment._id, status: 'approved' });
+        io.emit('coins_credited', { tenantId: payment.tenantId, newCoins: tenant?.wolfCoins, coinsAllocated: payment.coinsAllocated });
       }
     } catch (e) {}
 
