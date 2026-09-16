@@ -118,6 +118,11 @@ exports.updateCampaignTemplate = async (req, res) => {
     const campaign = await Campaign.findByIdAndUpdate(campaignId, updateFields, { returnDocument: 'after' });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
+    // 🔥 Trigger processor to wake up background loop immediately if campaign is running
+    if (campaign.status === 'running') {
+      campaignManager.startCampaignProcessor(campaign.tenantId);
+    }
+
     console.log(`[Campaign Controller] 📝 Mid-Campaign Settings updated for campaign "${campaign.name}" (${campaign._id})`);
     res.status(200).json({ success: true, message: 'Campaign settings & speed updated successfully!', campaign });
   } catch (err) {

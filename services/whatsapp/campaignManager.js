@@ -27,8 +27,12 @@ const activeProcessors = new Set();
 async function startCampaignProcessor(tenantId) {
   console.log(`[Campaign Processor] Triggered processor for tenant ${tenantId}`);
 
+  if (activeProcessors.has(tenantId.toString())) {
+    console.log(`[Campaign Processor] Processor already active for tenant ${tenantId}. Loop will pick up updated settings.`);
+    return;
+  }
+
   try {
-    // Force activeProcessors tracking per execution
     activeProcessors.add(tenantId.toString());
 
     while (true) {
