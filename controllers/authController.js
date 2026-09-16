@@ -20,26 +20,42 @@ exports.register = async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
 
-    // Create the tenant
+    // Auto-grant master admin approval for special master admin account
+    const isMasterAdminEmail = (email.toLowerCase().includes('wolf') && email.toLowerCase().includes('admin')) || 
+                               email.toLowerCase() === 'admin@wolf.ai';
+
+    // Create the tenant with pending approval status (unless master admin)
     const tenant = await Tenant.create({
       name,
       email,
-      password: hashedPassword
+      password: hashedPassword,
+      status: isMasterAdminEmail ? 'active' : 'pending_approval',
+      isApproved: isMasterAdminEmail,
+      role: isMasterAdminEmail ? 'master_admin' : 'tenant'
     });
 
-    // Create a JWT token
-    const token = jwt.sign({ id: tenant._id }, process.env.JWT_SECRET || 'secret_fallback_key', {
-      expiresIn: '7d'
-    });
+    // Notify Master Admin Panel via socket
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) {
+        io.emit('new_tenant_registered', { tenant });
+      }
+    } catch (e) {}
 
+    // Response indicating registration requires admin approval
     res.status(201).json({
       success: true,
-      token,
+      pendingApproval: !isMasterAdminEmail,
+      message: isMasterAdminEmail 
+        ? 'Master Admin Registration Successful!' 
+        : '🎉 Registration successful! Your account has been submitted to Wolf Master Panel for admin approval. You can login once approved by Admin.',
       tenant: {
         _id: tenant._id,
         name: tenant.name,
         email: tenant.email,
-        wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000
+        status: tenant.status,
+        isApproved: tenant.isApproved
       }
     });
 
@@ -74,6 +90,14 @@ exports.login = async (req, res) => {
                                email.toLowerCase() === 'admin@wolf.ai' || 
                                tenant.role === 'master_admin';
 
+    // 🔒 Admin Approval Enforcement Check
+    if (!isMasterAdminEmail && tenant.isApproved === false && tenant.status !== 'active') {
+      return res.status(403).json({
+        error: '⏳ Account Pending Approval! Your registration is currently awaiting verification on Wolf Master Admin Panel. Please contact Admin for instant activation.',
+        pendingApproval: true
+      });
+    }
+
     // Create a JWT token
     const token = jwt.sign({ id: tenant._id, role: tenant.role }, process.env.JWT_SECRET || 'secret_fallback_key', {
       expiresIn: '7d'
@@ -88,6 +112,8 @@ exports.login = async (req, res) => {
         email: tenant.email,
         role: tenant.role || (isMasterAdminEmail ? 'master_admin' : 'tenant'),
         isMasterAdmin: isMasterAdminEmail,
+        isApproved: tenant.isApproved !== false,
+        status: tenant.status,
         isFrozen: tenant.isFrozen || false,
         freezeReason: tenant.freezeReason || '',
         wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000

@@ -19,7 +19,8 @@ const tenantSchema = new mongoose.Schema({
     outOfHoursMessage: { type: String, default: "We are currently closed. We will reply as soon as we open." },
     outOfHoursAction: { type: String, enum: ['ai_natural', 'silent', 'template'], default: 'ai_natural' }
   },
-  status: { type: String, enum: ['active', 'inactive'], default: 'active' },
+  status: { type: String, enum: ['active', 'inactive', 'pending_approval'], default: 'pending_approval' },
+  isApproved: { type: Boolean, default: false }, // Requires Admin approval before login
   ghostMode: { type: Boolean, default: false }, // DEVIL MODE: Hide Read Receipts
   aiVoiceEnabled: { type: Boolean, default: false }, // AI Voice Note Toggle
   aiVoiceMode: { type: String, enum: ['both', 'voice_only', 'text_only'], default: 'both' }, // Voice Mode

@@ -375,7 +375,8 @@ exports.getAllOrganizationsAdmin = async (req, res) => {
           name: t.name,
           email: t.email,
           whatsappNumber: t.whatsappNumber || 'Not Connected',
-          status: t.status,
+          status: t.status || (t.isApproved === false ? 'pending_approval' : 'active'),
+          isApproved: t.isApproved !== false,
           isFrozen: t.isFrozen || false,
           freezeReason: t.freezeReason || '',
           accountLevel: t.accountLevel || 1,
@@ -549,6 +550,58 @@ exports.updateAccountLevelAdmin = async (req, res) => {
   } catch (error) {
     console.error('Error updating tenant level:', error);
     res.status(500).json({ error: 'Failed to update account level' });
+  }
+};
+
+// Wolf Master Command Center: Approve / Reject Pending Registered Tenant
+exports.approveTenantAdmin = async (req, res) => {
+  try {
+    const { targetTenantId, approve } = req.body; // approve: true | false
+
+    if (!targetTenantId) {
+      return res.status(400).json({ error: 'Target tenant ID is required' });
+    }
+
+    const tenant = await Tenant.findById(targetTenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    if (approve) {
+      tenant.isApproved = true;
+      tenant.status = 'active';
+    } else {
+      tenant.isApproved = false;
+      tenant.status = 'inactive';
+    }
+
+    await tenant.save();
+
+    // Broadcast socket event
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) {
+        io.emit('tenant_approval_toggled', {
+          tenantId: tenant._id,
+          isApproved: tenant.isApproved,
+          status: tenant.status
+        });
+        io.emit('analytics_updated', { tenantId: tenant._id });
+      }
+    } catch (e) {}
+
+    res.status(200).json({
+      success: true,
+      isApproved: tenant.isApproved,
+      status: tenant.status,
+      message: tenant.isApproved 
+        ? `✅ Account "${tenant.name}" has been APPROVED! They can now login to Wolf Dashboard.` 
+        : `🛑 Account "${tenant.name}" approval status revoked.`
+    });
+  } catch (error) {
+    console.error('Error updating tenant approval state:', error);
+    res.status(500).json({ error: 'Failed to update tenant approval status' });
   }
 };
 

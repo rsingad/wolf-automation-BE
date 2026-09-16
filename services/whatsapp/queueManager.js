@@ -207,16 +207,28 @@ async function processQueue(tenantId, remoteJid, sock, io) {
         // 💬 Live 1-on-1 Customer Replies: UNLIMITED & UNBLOCKED (Warmup daily limit applies ONLY to Cold Campaigns)
         const { recordOutboundMessage } = require('../accountWarmupService');
 
-        // --- BUSINESS HOURS CHECK ---
-        const currentHour = new Date().getHours();
+        // --- ACCURATE BUSINESS HOURS CHECK (Hours + Minutes + Overnight Support) ---
+        const now = new Date();
+        const currentTotalMins = (now.getHours() * 60) + now.getMinutes();
         let isOutOfHours = false;
         const outOfHoursAction = tenant?.businessHours?.outOfHoursAction || 'ai_natural';
         
         if (tenant && tenant.businessHours) {
-          const startHour = parseInt(tenant.businessHours.start.split(':')[0]);
-          const endHour = parseInt(tenant.businessHours.end.split(':')[0]);
-          if (currentHour < startHour || currentHour >= endHour) {
-            isOutOfHours = true;
+          const [sH, sM] = (tenant.businessHours.start || '09:00').split(':').map(Number);
+          const [eH, eM] = (tenant.businessHours.end || '18:00').split(':').map(Number);
+          const startTotalMins = (sH * 60) + (sM || 0);
+          const endTotalMins = (eH * 60) + (eM || 0);
+
+          if (startTotalMins < endTotalMins) {
+            // Normal Day Shift (e.g., 09:30 AM to 06:30 PM)
+            if (currentTotalMins < startTotalMins || currentTotalMins >= endTotalMins) {
+              isOutOfHours = true;
+            }
+          } else if (startTotalMins > endTotalMins) {
+            // Overnight Shift (e.g., 10:00 PM to 06:00 AM)
+            if (currentTotalMins < startTotalMins && currentTotalMins >= endTotalMins) {
+              isOutOfHours = true;
+            }
           }
         }
 
