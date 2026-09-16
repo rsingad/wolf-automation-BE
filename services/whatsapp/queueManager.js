@@ -172,17 +172,17 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           continue;
         }
 
-        // ⏱️ 5-MINUTE AUTO-RESUME TIMER CHECK FOR MANUAL MESSAGES
+        // ⏱️ DYNAMIC AUTO-RESUME TIMER CHECK FOR MANUAL MESSAGES
         if (customer.aiPaused && customer.aiPausedUntil) {
           const now = new Date();
           if (now >= new Date(customer.aiPausedUntil)) {
-            // 5 minutes have passed since last manual message! Auto-resume AI!
+            // Timer expired! Auto-resume AI!
             customer.aiPaused = false;
             customer.aiPausedUntil = null;
             customer.aiStatusState = 'ACTIVE_AI';
-            customer.lastResponseReason = '⚡ AI Auto-Resumed after 5-minute manual pause window!';
+            customer.lastResponseReason = '⚡ AI Auto-Resumed after human manual takeover inactivity window!';
             await customer.save();
-            console.log(`[Queue 5-Min Timer] ⚡ 5-minute pause expired! Auto-resuming AI for ${customer.name || customer._id}`);
+            console.log(`[Queue Dynamic Timer] ⚡ Manual pause expired! Auto-resuming AI for ${customer.name || customer._id}`);
             if (io) io.to(tenantId).emit('customer-updated', customer);
           }
         }
@@ -192,13 +192,16 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           console.log(`[Tenant ${tenantId}] 🛑 AI Auto-Reply is OFF (Global: ${tenant?.aiAutoReplyDisabled}, Customer: ${customer.aiPaused}). Skipping AI auto-reply.`);
           customer.aiStatusState = tenant?.aiAutoReplyDisabled ? 'SKIPPED_GLOBAL_OFF' : 'PAUSED_MANUAL';
           
+          const timeoutMins = tenant?.humanTakeoverResumeMinutes !== undefined ? tenant.humanTakeoverResumeMinutes : 30;
           const remainingMins = customer.aiPausedUntil 
             ? Math.max(1, Math.ceil(((new Date(customer.aiPausedUntil) - new Date()) / 1000) / 60))
-            : 5;
+            : timeoutMins;
 
           customer.lastResponseReason = tenant?.aiAutoReplyDisabled 
             ? '🌐 AI is disabled globally in System Settings' 
-            : `⏱️ AI Paused for 5 mins (Human agent replied). ${remainingMins}m left`;
+            : (timeoutMins > 0 
+                ? `⏱️ AI Paused for ${timeoutMins} mins (Human agent replied). ${remainingMins}m left`
+                : `🔒 AI Paused manually by Human agent (Manual Resume required)`);
           await customer.save();
           if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;

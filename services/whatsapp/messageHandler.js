@@ -311,6 +311,22 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           if (updated) await customer.save();
         }
 
+        // 🛑 HUMAN TAKEOVER TRIGGER: If human sends a message manually, pause AI for this contact
+        const Tenant = require('../../models/Tenant');
+        const currentTenant = await Tenant.findById(tenantId);
+        const resumeMins = currentTenant?.humanTakeoverResumeMinutes !== undefined ? currentTenant.humanTakeoverResumeMinutes : 30;
+
+        customer.aiPaused = true;
+        customer.aiStatusState = 'PAUSED_MANUAL';
+        if (resumeMins > 0) {
+          customer.aiPausedUntil = new Date(Date.now() + resumeMins * 60 * 1000);
+          customer.lastResponseReason = `⏱️ Human manual takeover active. AI paused for ${resumeMins} mins`;
+        } else {
+          customer.aiPausedUntil = null;
+          customer.lastResponseReason = `🔒 Human manual takeover active. AI paused until manually resumed`;
+        }
+        await customer.save();
+
         const phoneMsg = await Message.create({
           tenantId,
           customerId: customer._id,
@@ -324,10 +340,12 @@ async function handleIncomingMessages(messages, tenantId, sock, io) {
           quotedContent,
           quotedSender
         });
-        // Show it on the dashboard!
 
-        // Show it on the dashboard!
-        if (io) io.to(tenantId).emit('new-message', { customerId: customer._id, message: phoneMsg });
+        // Show it on the dashboard & emit customer update!
+        if (io) {
+          io.to(tenantId).emit('new-message', { customerId: customer._id, message: phoneMsg });
+          io.to(tenantId).emit('customer-updated', customer);
+        }
       }
       // Do NOT trigger AI reply for our own messages
       continue;

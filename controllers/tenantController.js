@@ -44,7 +44,8 @@ exports.getSettings = async (req, res) => {
       servicesList: tenant.servicesList || ["General Consultation", "Service Inquiry", "Booking / Reservation"],
       webSearchEnabled: tenant.webSearchEnabled !== undefined ? tenant.webSearchEnabled : true,
       businessWebsiteUrl: tenant.businessWebsiteUrl || "",
-      aiAutoReplyDisabled: tenant.aiAutoReplyDisabled || false
+      aiAutoReplyDisabled: tenant.aiAutoReplyDisabled || false,
+      humanTakeoverResumeMinutes: tenant.humanTakeoverResumeMinutes !== undefined ? tenant.humanTakeoverResumeMinutes : 30
     }});
   } catch (error) {
     console.error('Error fetching tenant settings:', error);

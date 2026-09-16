@@ -35,6 +35,7 @@ const tenantSchema = new mongoose.Schema({
   webSearchEnabled: { type: Boolean, default: true }, // Live Web Browsing Toggle
   businessWebsiteUrl: { type: String, default: "" }, // Custom business website URL to scrape
   aiAutoReplyDisabled: { type: Boolean, default: false }, // Global AI Auto-Reply Off Switch
+  humanTakeoverResumeMinutes: { type: Number, default: 30 }, // Inactivity timer to auto-resume AI after human manual reply (in minutes, 0 = never)
   accountLevel: { type: Number, default: 1 }, // 1: Warmup, 2: Growth, 3: Pro, 4: Enterprise
   dailyMessagesSent: { type: Number, default: 0 }, // Daily outbound count
   lastDailyResetDate: { type: String, default: "" }, // ISO date YYYY-MM-DD
