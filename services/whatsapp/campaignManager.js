@@ -21,21 +21,60 @@ function getCleanName(rawName) {
   return clean;
 }
 
-// Track which tenants have a running processor
-const activeProcessors = new Set();
+// ─────────────────────────────────────────────────────────────────────────────
+// Generation-based processor tracking:
+//   Map<tenantId, generationNumber>
+//
+// Every time startCampaignProcessor runs, it gets a generation number.
+// resetProcessorLock increments the generation so the OLD sleeping processor
+// realises it is stale and self-exits WITHOUT touching the new processor's lock.
+//
+// This fixes the core bug: Batch A paused → Batch B resumed → old Batch A
+// processor was still sleeping 45s, then woke up and deleted the lock,
+// killing Batch B's processor mid-run.
+// ─────────────────────────────────────────────────────────────────────────────
+const processorGenerations = new Map(); // tenantId -> current generation number
+
+// Interruptible sleep: polls every 500ms and resolves early if generation changes
+function interruptibleDelay(tenantKey, myGeneration, minMs, maxMs) {
+  const totalMs = Math.floor(Math.random() * (maxMs - minMs + 1) + minMs);
+  return new Promise(resolve => {
+    const deadline = Date.now() + totalMs;
+    const tick = setInterval(() => {
+      // If our generation is no longer current, bail out immediately
+      if (processorGenerations.get(tenantKey) !== myGeneration) {
+        clearInterval(tick);
+        resolve('interrupted');
+        return;
+      }
+      if (Date.now() >= deadline) {
+        clearInterval(tick);
+        resolve('done');
+      }
+    }, 500);
+  });
+}
 
 async function startCampaignProcessor(tenantId) {
-  console.log(`[Campaign Processor] Triggered processor for tenant ${tenantId}`);
+  const key = tenantId.toString();
 
-  if (activeProcessors.has(tenantId.toString())) {
-    console.log(`[Campaign Processor] Processor already active for tenant ${tenantId}. Loop will pick up updated settings.`);
-    return;
-  }
+  // Increment generation — this invalidates any currently sleeping old processor
+  const myGeneration = (processorGenerations.get(key) || 0) + 1;
+  processorGenerations.set(key, myGeneration);
+
+  console.log(`[Campaign Processor] 🚀 Starting processor gen#${myGeneration} for tenant ${tenantId}`);
+
+  // Helper: are we still the current (live) processor?
+  const isAlive = () => processorGenerations.get(key) === myGeneration;
 
   try {
-    activeProcessors.add(tenantId.toString());
-
     while (true) {
+      // ── Stale check at loop start ──
+      if (!isAlive()) {
+        console.log(`[Campaign Processor] ⛔ Gen#${myGeneration} is stale for tenant ${tenantId}. Self-exiting.`);
+        return;
+      }
+
       // 1. Find the currently running campaign (oldest first)
       let campaign = await Campaign.findOne({ tenantId, status: 'running' }).sort({ createdAt: 1 });
       
@@ -54,7 +93,7 @@ async function startCampaignProcessor(tenantId) {
 
       if (!campaign) {
         // No running or pending campaigns, exit the loop
-        activeProcessors.delete(tenantId.toString());
+        if (isAlive()) processorGenerations.delete(key);
         console.log(`[Campaign Processor] Stopped for tenant ${tenantId} (No running/pending campaigns in queue)`);
         return;
       }
@@ -62,7 +101,7 @@ async function startCampaignProcessor(tenantId) {
       const sock = connectionManager.getActiveSession(tenantId);
       if (!sock) {
         console.log(`[Campaign Processor] WhatsApp session not active. Pausing processor.`);
-        activeProcessors.delete(tenantId.toString());
+        if (isAlive()) processorGenerations.delete(key);
         return; // Pause processing if WhatsApp disconnects
       }
 
@@ -81,7 +120,7 @@ async function startCampaignProcessor(tenantId) {
         const io = getIo();
         if (io) io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
         if (io) io.to(tenantId.toString()).emit('warmup-limit-reached', { warmup, campaignId: campaign._id });
-        activeProcessors.delete(tenantId);
+        if (isAlive()) processorGenerations.delete(key);
         return;
       }
 
@@ -387,12 +426,18 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         io.to(tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
       }
 
-      // Re-fetch fresh campaign settings from DB so mid-campaign speed/prompt updates reflect IMMEDIATELY without waiting for next loop!
+      // ── Stale check BEFORE sleeping — exit immediately if new processor took over ──
+      if (!isAlive()) {
+        console.log(`[Campaign Processor] ⛔ Gen#${myGeneration} pre-sleep stale check failed. Self-exiting for tenant ${tenantId}.`);
+        return;
+      }
+
+      // Re-fetch fresh campaign settings from DB so mid-campaign speed/prompt updates reflect IMMEDIATELY
       const freshCampaign = await Campaign.findById(campaign._id);
       
       if (!freshCampaign || freshCampaign.status !== 'running') {
         console.log(`[Campaign Processor] Campaign ${campaign._id} status is no longer running (${freshCampaign?.status}). Exiting loop cycle.`);
-        activeProcessors.delete(tenantId.toString());
+        if (isAlive()) processorGenerations.delete(key);
         return;
       }
 
@@ -422,18 +467,28 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       }
 
       console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${currentSafetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
-      await randomDelay(minDelay, maxDelay);
+      
+      // ✅ Interruptible sleep — wakes up immediately if a newer processor takes over (resetProcessorLock called)
+      const sleepResult = await interruptibleDelay(key, myGeneration, minDelay, maxDelay);
+      if (sleepResult === 'interrupted') {
+        console.log(`[Campaign Processor] ⚡ Gen#${myGeneration} sleep interrupted by newer processor for tenant ${tenantId}. Self-exiting cleanly.`);
+        return;
+      }
     }
   } catch (error) {
     console.error(`[Campaign Processor] Fatal Error:`, error);
-    activeProcessors.delete(tenantId);
+    if (isAlive()) processorGenerations.delete(key);
   }
 }
 
 function resetProcessorLock(tenantId) {
   if (tenantId) {
-    activeProcessors.delete(tenantId.toString());
-    console.log(`[Campaign Processor] 🔓 Force-cleared active processor lock for tenant ${tenantId}`);
+    const key = tenantId.toString();
+    // Bump the generation counter. The sleeping old processor will detect this
+    // on its next 500ms tick and self-exit without touching the new processor.
+    const current = processorGenerations.get(key) || 0;
+    processorGenerations.set(key, current + 1);
+    console.log(`[Campaign Processor] 🔓 Bumped generation to ${current + 1} for tenant ${tenantId}. Old processor will self-exit on next tick.`);
   }
 }
 
