@@ -141,6 +141,12 @@ exports.impersonateTenant = async (req, res) => {
       },
       message: `🔑 Impersonation active: Logged into ${tenant.name} (${tenant.email})`
     });
+  } catch (error) {
+    console.error('Impersonation error:', error);
+    res.status(500).json({ error: 'Server error during impersonation' });
+  }
+};
+
 // Get Current Tenant Profile (Fresh DB Balance Sync)
 exports.getMe = async (req, res) => {
   try {
