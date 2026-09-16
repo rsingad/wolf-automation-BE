@@ -243,6 +243,10 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       }
 
       try {
+        // Set processing start timestamp on contact
+        campaign.contacts[pendingContactIndex].processedAt = new Date();
+        await campaign.save();
+
         console.log(`[Campaign] Dispatching message for ${phone}:\n${messageText}`);
         
         // Anti-ban: Dynamic Word-Count Based Human Typing Speed (Average ~40 WPM + Human Thinking Pause)
@@ -302,8 +306,14 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         const sentMsg = await sendWithTimeout();
         await recordOutboundMessage(tenantId);
         
-        // Update contact status
+        const nowTime = new Date();
+        const startProcTime = campaign.contacts[pendingContactIndex].processedAt || nowTime;
+        const durationMs = Math.max(0, nowTime - new Date(startProcTime));
+
+        // Update contact status & record exact duration
         campaign.contacts[pendingContactIndex].status = 'sent';
+        campaign.contacts[pendingContactIndex].sentAt = nowTime;
+        campaign.contacts[pendingContactIndex].executionDurationMs = durationMs;
         campaign.progress.sent += 1;
 
         // Ensure customer record updated
@@ -379,9 +389,16 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
 
       // Re-fetch fresh campaign settings from DB so mid-campaign speed/prompt updates reflect IMMEDIATELY without waiting for next loop!
       const freshCampaign = await Campaign.findById(campaign._id);
-      const currentSafetyMode = freshCampaign ? freshCampaign.safetyMode : campaign.safetyMode;
-      const currentMinSec = freshCampaign ? freshCampaign.customDelayMinSeconds : campaign.customDelayMinSeconds;
-      const currentMaxSec = freshCampaign ? freshCampaign.customDelayMaxSeconds : campaign.customDelayMaxSeconds;
+      
+      if (!freshCampaign || freshCampaign.status !== 'running') {
+        console.log(`[Campaign Processor] Campaign ${campaign._id} status is no longer running (${freshCampaign?.status}). Exiting loop cycle.`);
+        activeProcessors.delete(tenantId.toString());
+        return;
+      }
+
+      const currentSafetyMode = freshCampaign.safetyMode || campaign.safetyMode;
+      const currentMinSec = freshCampaign.customDelayMinSeconds || campaign.customDelayMinSeconds;
+      const currentMaxSec = freshCampaign.customDelayMaxSeconds || campaign.customDelayMaxSeconds;
 
       // Anti-ban delay based on selected safety mode
       let minDelay = 45000; // Default Safe Mode: 45s to 90s per msg

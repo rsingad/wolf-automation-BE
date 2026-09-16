@@ -95,7 +95,8 @@ exports.resumeCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
     const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'running', pauseReason: '' }, { returnDocument: 'after' });
-    // Trigger processor just in case
+    // Force-clear processor lock and wake up processor immediately
+    campaignManager.resetProcessorLock && campaignManager.resetProcessorLock(campaign.tenantId);
     campaignManager.startCampaignProcessor(campaign.tenantId);
     res.status(200).json({ success: true, campaign });
   } catch (err) {

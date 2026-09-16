@@ -4,7 +4,10 @@ const contactSchema = new mongoose.Schema({
   name: { type: String, default: '' },
   phone: { type: String, required: true },
   status: { type: String, enum: ['pending', 'sent', 'failed', 'ignored'], default: 'pending' },
-  error: { type: String }
+  error: { type: String },
+  processedAt: { type: Date },
+  sentAt: { type: Date },
+  executionDurationMs: { type: Number }
 });
 
 const campaignSchema = new mongoose.Schema({
