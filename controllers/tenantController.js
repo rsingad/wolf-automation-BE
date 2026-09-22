@@ -381,6 +381,7 @@ exports.getAllOrganizationsAdmin = async (req, res) => {
           isFrozen: t.isFrozen || false,
           freezeReason: t.freezeReason || '',
           accountLevel: t.accountLevel || 1,
+          logRetentionDays: t.logRetentionDays || 90,
           wolfCoins: t.wolfCoins || 500000,
           totalCustomers,
           messagesSent: totalSent,
@@ -602,7 +603,32 @@ exports.approveTenantAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating tenant approval state:', error);
-    res.status(500).json({ error: 'Failed to update tenant approval status' });
+// Wolf Master Command Center: Update Log Retention Days (15, 30, 60, 90, 180, 365 days)
+exports.updateLogRetentionAdmin = async (req, res) => {
+  try {
+    const { targetTenantId, logRetentionDays } = req.body;
+
+    if (!targetTenantId || !logRetentionDays || typeof logRetentionDays !== 'number') {
+      return res.status(400).json({ error: 'Target tenant ID and valid log retention days required' });
+    }
+
+    const tenant = await Tenant.findById(targetTenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Organization not found' });
+    }
+
+    tenant.logRetentionDays = logRetentionDays;
+    await tenant.save();
+
+    res.status(200).json({
+      success: true,
+      logRetentionDays: tenant.logRetentionDays,
+      message: `📅 Success! Log retention period updated to ${logRetentionDays} days for "${tenant.name}".`
+    });
+  } catch (error) {
+    console.error('Error updating log retention days:', error);
+    res.status(500).json({ error: 'Failed to update log retention days' });
   }
 };
+
 

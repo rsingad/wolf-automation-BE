@@ -44,6 +44,7 @@ const tenantSchema = new mongoose.Schema({
   isFrozen: { type: Boolean, default: false }, // Super Owner Account Freeze Status
   freezeReason: { type: String, default: "" }, // Freeze Reason (e.g., Free Demo Expired, Violation)
   freezeDate: { type: Date },
+  logRetentionDays: { type: Number, default: 90 }, // Days before UsageLogs are purged
   wolfCoins: { type: Number, default: 500000 },
   wolfTokenBalance: { type: Number, default: 500000 }, // Default 500,000 Wolf Tokens allocated
   totalWolfTokensAllocated: { type: Number, default: 500000 }

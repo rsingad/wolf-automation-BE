@@ -424,6 +424,13 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
           latencyMs
         });
 
+        // ✅ WOLF COINS DEDUCTION: Deduct tokens used from tenant's wolfCoins balance
+        // Use atomic $inc to prevent race conditions (multiple simultaneous AI calls)
+        await Tenant.findByIdAndUpdate(targetTenantId, {
+          $inc: { wolfCoins: -totalTokens, wolfTokenBalance: -totalTokens }
+        });
+        console.log(`[Wolf Coins] 💰 Deducted ${totalTokens} tokens from tenant ${targetTenantId}`);
+
         // Broadcast real-time analytics update event
         try {
           const { getIo } = require('../config/socket');

@@ -93,6 +93,26 @@ mongoose.connect(process.env.MONGO_URI)
       const { restoreAllActiveSessions } = require('./services/whatsapp/connectionManager');
       restoreAllActiveSessions(io);
 
+      // ✅ CAMPAIGN RECOVERY: After server restart, processorGenerations Map is empty.
+      // Any campaign that was 'running' in DB has no active processor.
+      // Wait 15s for WhatsApp sessions to re-establish, then restart stuck processors.
+      setTimeout(async () => {
+        try {
+          const Campaign = require('./models/Campaign');
+          const { startCampaignProcessor } = require('./services/whatsapp/campaignManager');
+          const runningCampaigns = await Campaign.find({ status: 'running' });
+          const uniqueTenantIds = [...new Set(runningCampaigns.map(c => c.tenantId.toString()))];
+          if (uniqueTenantIds.length > 0) {
+            console.log(`[Server Startup] 🔄 Campaign Recovery: Restarting processors for ${uniqueTenantIds.length} tenant(s) with running campaigns...`);
+            for (const tId of uniqueTenantIds) {
+              startCampaignProcessor(tId);
+            }
+          }
+        } catch (err) {
+          console.error('[Server Startup] Campaign recovery error:', err.message);
+        }
+      }, 15000); // 15 second delay to let WhatsApp sessions reconnect first
+
       // Render Anti-Sleep 24/7 Keep-Alive Service (Prevents 50-sec Cold Starts)
       const axios = require('axios');
       setInterval(() => {

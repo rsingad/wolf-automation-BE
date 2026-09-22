@@ -15,13 +15,11 @@ exports.getDashboardStats = async (req, res) => {
 
     // 0. Fetch Tenant for real-time Wolf Coins balance
     const tenant = await Tenant.findById(tenantId);
-    const allocatedWolfCoins = (tenant && tenant.wolfCoins > 0) ? tenant.wolfCoins : (tenant && tenant.wolfTokenBalance > 0 ? tenant.wolfTokenBalance : 500000);
-
-    const usageLogs = await UsageLog.find({ tenantId });
-    let totalTokensUsed = 0;
-    usageLogs.forEach(log => { totalTokensUsed += log.totalTokens || 0; });
-
-    const wolfCoins = Math.max(0, allocatedWolfCoins - totalTokensUsed);
+    // wolfCoins is now deducted atomically in aiService.js after each AI call
+    // So we just read the current balance directly from DB — no need to recalculate
+    const wolfCoins = Math.max(0, tenant?.wolfCoins ?? 500000);
+    const allocatedWolfCoins = tenant?.totalWolfTokensAllocated ?? 500000;
+    const usedWolfCoins = Math.max(0, allocatedWolfCoins - wolfCoins);
 
     // 1. Total Customers & Groups (Strictly scoped to tenantId)
     const totalCustomers = await Customer.countDocuments({ tenantId });
@@ -69,7 +67,7 @@ exports.getDashboardStats = async (req, res) => {
       stats: {
         wolfCoins,
         allocatedWolfCoins,
-        usedWolfCoins: totalTokensUsed,
+        usedWolfCoins,
         totalCustomers,
         totalGroups,
         totalCampaigns,

@@ -116,7 +116,7 @@ exports.login = async (req, res) => {
         status: tenant.status,
         isFrozen: tenant.isFrozen || false,
         freezeReason: tenant.freezeReason || '',
-        wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000
+        wolfCoins: tenant.wolfCoins ?? tenant.wolfTokenBalance ?? 500000
       }
     });
   } catch (error) {
@@ -162,7 +162,7 @@ exports.impersonateTenant = async (req, res) => {
         email: tenant.email,
         isFrozen: tenant.isFrozen || false,
         freezeReason: tenant.freezeReason || '',
-        wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000,
+        wolfCoins: tenant.wolfCoins ?? tenant.wolfTokenBalance ?? 500000,
         isImpersonated: true
       },
       message: `🔑 Impersonation active: Logged into ${tenant.name} (${tenant.email})`
@@ -192,7 +192,7 @@ exports.getMe = async (req, res) => {
         isFrozen: tenant.isFrozen || false,
         freezeReason: tenant.freezeReason || '',
         accountLevel: tenant.accountLevel || 1,
-        wolfCoins: tenant.wolfCoins || tenant.wolfTokenBalance || 500000
+        wolfCoins: tenant.wolfCoins ?? tenant.wolfTokenBalance ?? 500000
       }
     });
   } catch (error) {

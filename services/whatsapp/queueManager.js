@@ -6,6 +6,7 @@ const { generateAIResponse } = require('../aiService');
 // Queueing system for sequential processing
 const messageQueues = new Map(); // Key: `${tenantId}_${remoteJid}`, Value: Array of messages
 const processingQueues = new Set(); // Tracks which queues are currently processing
+const debounceTimers = new Map(); // Key: `${tenantId}_${remoteJid}`, debounce timers for message grouping
 
 // Helper to simulate randomized human delay
 const randomDelay = (min, max) => new Promise(resolve => setTimeout(resolve, Math.floor(Math.random() * (max - min + 1) + min)));
@@ -23,6 +24,9 @@ async function processQueue(tenantId, remoteJid, sock, io) {
     const queue = messageQueues.get(queueKey);
     
     while (queue && queue.length > 0) {
+      // Skip items still in debounce window (not yet ready)
+      if (queue[0] && queue[0]._debouncing) break;
+
       const msgData = queue.shift(); // Get oldest message
       const { textContent, messageKey, pushName, mediaOpts } = msgData;
 
@@ -35,6 +39,12 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           tenantId, 
           $or: [{ whatsappNumber: remoteJid }, { aliasIds: remoteJid }]
         });
+
+        // ✅ BLACKLIST CHECK: Never process messages from blacklisted users
+        if (customer && customer.isBlacklisted) {
+          console.log(`[Queue] 🚫 Skipping message from blacklisted user ${remoteJid}. No AI reply.`);
+          continue;
+        }
 
         if (!customer) {
           const isLid = remoteJid.includes('@lid');
@@ -150,13 +160,28 @@ async function processQueue(tenantId, remoteJid, sock, io) {
         }
 
         // 🛑 AUTOMATED OPT-OUT (STOP KEYWORD) HANDLER
-        const optOutKeywords = ['stop', 'unsubscribe', 'mat bhejo', 'band karo', 'hatao', 'remove me'];
-        if (optOutKeywords.some(kw => trimmedText.toLowerCase() === kw || trimmedText.toLowerCase().startsWith(`${kw} `))) {
-          console.log(`[Queue] 🛑 Opt-out keyword detected from ${customer.name || remoteJid}. Blacklisting and unsubscribing.`);
+        // Uses includes() for natural language — covers 'yaar mat bhejo', 'block kar dunga' etc.
+        const optOutPhrases = [
+          'stop', 'unsubscribe', 'mat bhejo', 'band karo', 'band kar', 'hatao', 'remove me',
+          'block', 'block kar', 'block karo', 'spam', 'mat karo', 'nahi chahiye messages',
+          'message mat', 'msg mat', 'don\'t message', 'dont message', 'opt out', 'optout'
+        ];
+        const msgLowerForOptOut = trimmedText.toLowerCase();
+        const isOptOut = optOutPhrases.some(phrase => 
+          msgLowerForOptOut === phrase ||
+          msgLowerForOptOut.includes(phrase)
+        );
+        if (isOptOut) {
+          console.log(`[Queue] 🛑 Opt-out detected from ${customer?.name || remoteJid}: "${trimmedText}". Blacklisting.`);
+          if (!customer) {
+            try {
+              customer = await Customer.create({ tenantId, whatsappNumber: remoteJid, name: remoteJid.split('@')[0] });
+            } catch(e) { customer = await Customer.findOne({ tenantId, whatsappNumber: remoteJid }); }
+          }
           customer.isBlacklisted = true;
           customer.aiPaused = true;
           customer.aiStatusState = 'PAUSED_MANUAL';
-          customer.lastResponseReason = '🛑 User requested Opt-Out / STOP';
+          customer.lastResponseReason = `🛑 User requested Opt-Out: "${trimmedText.slice(0, 40)}"`;
           await customer.save();
 
           const stopMsgText = "Aapko hamari broadcast list se remove kar diya gaya hai. Ab aapko koi promotional message nahi aayega. Thank you! 🙏";
@@ -524,9 +549,37 @@ function addToQueue(tenantId, remoteJid, textContent, messageKey, pushName, sock
   if (!messageQueues.has(queueKey)) {
     messageQueues.set(queueKey, []);
   }
-  
-  messageQueues.get(queueKey).push({ textContent, messageKey, pushName, mediaOpts });
-  processQueue(tenantId, remoteJid, sock, io);
+
+  // ✅ DEBOUNCE: Accumulate rapid messages for 600ms, then process them all together
+  // This prevents replying to each part of a split message separately
+  const pending = messageQueues.get(queueKey);
+  const lastItem = pending[pending.length - 1];
+
+  // If queue has an un-processed accumulated item within debounce window, append text to it
+  if (lastItem && lastItem._debouncing) {
+    // Append new message text to the existing pending item (combine into one AI query)
+    lastItem.textContent = lastItem.textContent 
+      ? `${lastItem.textContent}\n${textContent}` 
+      : textContent;
+    // Refresh the debounce timer
+    if (debounceTimers.has(queueKey)) clearTimeout(debounceTimers.get(queueKey));
+  } else {
+    // New message — add with _debouncing flag
+    pending.push({ textContent, messageKey, pushName, mediaOpts, _debouncing: true });
+  }
+
+  // Set/reset debounce timer: after 600ms of silence, mark ready and start processing
+  if (debounceTimers.has(queueKey)) clearTimeout(debounceTimers.get(queueKey));
+  const timer = setTimeout(() => {
+    debounceTimers.delete(queueKey);
+    const q = messageQueues.get(queueKey);
+    if (q && q.length > 0) {
+      // Mark item as ready (no longer debouncing)
+      if (q[0]._debouncing) delete q[0]._debouncing;
+    }
+    processQueue(tenantId, remoteJid, sock, io);
+  }, 600); // 600ms debounce window
+  debounceTimers.set(queueKey, timer);
 }
 
 module.exports = {

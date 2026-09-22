@@ -9,7 +9,9 @@ exports.getAnalytics = async (req, res) => {
     const { tenantId } = req.params;
 
     const tenantDoc = await Tenant.findById(tenantId).lean();
-    const allocatedWolfTokens = (tenantDoc && tenantDoc.wolfCoins > 0) ? tenantDoc.wolfCoins : (tenantDoc && tenantDoc.wolfTokenBalance > 0 ? tenantDoc.wolfTokenBalance : 500000);
+    // wolfCoins is deducted atomically in aiService.js — read directly from DB
+    const allocatedWolfTokens = tenantDoc?.totalWolfTokensAllocated ?? 500000;
+    const currentWolfCoins = Math.max(0, tenantDoc?.wolfCoins ?? 500000);
 
     // 1. Fetch Token Usage Logs
     const usageLogs = await UsageLog.find({ tenantId }).sort({ createdAt: -1 });
@@ -51,7 +53,8 @@ exports.getAnalytics = async (req, res) => {
     const hotLeads = await Customer.countDocuments({ tenantId, aiTag: 'HOT LEAD' });
 
     const estimatedCostInr = Number((totalCostUsd * 85).toFixed(2));
-    const remainingWolfTokens = Math.max(0, allocatedWolfTokens - totalTokens);
+    // Use direct DB balance (already deducted) rather than subtracting from logs
+    const remainingWolfTokens = currentWolfCoins;
     const avgTokensPerMsg = totalMessages > 0 ? Math.max(1, Math.round(totalTokens / totalMessages)) : 200;
     const estimatedMessagesRemaining = Math.floor(remainingWolfTokens / (avgTokensPerMsg || 200));
 
@@ -64,6 +67,7 @@ exports.getAnalytics = async (req, res) => {
           completionTokens: totalCompletionTokens,
           allocatedWolfTokens,
           remainingWolfTokens,
+          currentBalance: currentWolfCoins,
           estimatedMessagesRemaining,
           avgTokensPerMsg,
           estimatedCostUsd: Number(totalCostUsd.toFixed(4)),

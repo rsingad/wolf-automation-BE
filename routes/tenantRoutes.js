@@ -18,7 +18,7 @@ router.get('/admin/organizations', tenantController.getAllOrganizationsAdmin);
 router.post('/admin/manual-grant', tenantController.manualCoinGrantAdmin);
 router.post('/admin/toggle-freeze', tenantController.toggleFreezeTenantAdmin);
 router.post('/admin/update-level', tenantController.updateAccountLevelAdmin);
-
+router.post('/admin/update-log-retention', tenantController.updateLogRetentionAdmin);
 router.post('/admin/approve', tenantController.approveTenantAdmin);
 
 module.exports = router;

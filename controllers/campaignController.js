@@ -116,22 +116,44 @@ exports.updateCampaignTemplate = async (req, res) => {
     if (customDelayMinSeconds !== undefined) updateFields.customDelayMinSeconds = parseInt(customDelayMinSeconds) || 10;
     if (customDelayMaxSeconds !== undefined) updateFields.customDelayMaxSeconds = parseInt(customDelayMaxSeconds) || 30;
 
+    // Fetch first so we know the pre-update status
+    const campaignBefore = await Campaign.findById(campaignId);
+    if (!campaignBefore) return res.status(404).json({ error: 'Campaign not found' });
+
+    const wasPaused = campaignBefore.status === 'paused';
+    const wasRunning = campaignBefore.status === 'running';
+
+    // ✅ If campaign was paused, auto-resume it when settings are saved
+    if (wasPaused) {
+      updateFields.status = 'running';
+      updateFields.pauseReason = '';
+    }
+
     const campaign = await Campaign.findByIdAndUpdate(campaignId, updateFields, { returnDocument: 'after' });
     if (!campaign) return res.status(404).json({ error: 'Campaign not found' });
 
-    // 🔥 Force-Clear processor memory lock & Wake up background loop immediately if campaign is running
-    if (campaign.status === 'running') {
+    // 🔥 Force-Clear processor memory lock & Wake up background loop immediately
+    // This works for both: was running (refresh settings) OR was paused (now resumed)
+    if (wasRunning || wasPaused) {
       campaignManager.resetProcessorLock && campaignManager.resetProcessorLock(campaign.tenantId);
       campaignManager.startCampaignProcessor(campaign.tenantId);
+      console.log(`[Campaign Controller] 🔥 Processor restarted after settings update for campaign "${campaign.name}" (was: ${wasPaused ? 'paused→resumed' : 'running'})`);
     }
 
+    const resumeMsg = wasPaused ? ' Campaign auto-resumed!' : '';
     console.log(`[Campaign Controller] 📝 Mid-Campaign Settings updated for campaign "${campaign.name}" (${campaign._id})`);
-    res.status(200).json({ success: true, message: 'Campaign settings & speed updated successfully!', campaign });
+    res.status(200).json({ 
+      success: true, 
+      message: `Campaign settings & speed updated successfully!${resumeMsg}`, 
+      campaign,
+      autoResumed: wasPaused
+    });
   } catch (err) {
     console.error('Error updating campaign template:', err);
     res.status(500).json({ error: 'Failed to update campaign settings' });
   }
 };
+
 
 exports.retryFailedContacts = async (req, res) => {
   try {
