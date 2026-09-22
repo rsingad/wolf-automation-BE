@@ -426,17 +426,18 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
 
         // ✅ WOLF COINS DEDUCTION: Deduct tokens used from tenant's wolfCoins balance
         // Use atomic $inc to prevent race conditions (multiple simultaneous AI calls)
-        await Tenant.findByIdAndUpdate(targetTenantId, {
+        const updatedTenant = await Tenant.findByIdAndUpdate(targetTenantId, {
           $inc: { wolfCoins: -totalTokens, wolfTokenBalance: -totalTokens }
-        });
-        console.log(`[Wolf Coins] 💰 Deducted ${totalTokens} tokens from tenant ${targetTenantId}`);
+        }, { returnDocument: 'after' });
+        console.log(`[Wolf Coins] 💰 Deducted ${totalTokens} tokens from tenant ${targetTenantId}. New balance: ${updatedTenant?.wolfCoins}`);
 
-        // Broadcast real-time analytics update event
+        // Broadcast real-time analytics & coin deduction socket events
         try {
           const { getIo } = require('../config/socket');
           const io = getIo();
           if (io) {
             io.emit('analytics_updated', { tenantId: targetTenantId });
+            io.emit('coins_deducted', { tenantId: targetTenantId, newCoins: updatedTenant?.wolfCoins });
           }
         } catch (sErr) {}
       }

@@ -431,6 +431,9 @@ exports.manualCoinGrantAdmin = async (req, res) => {
     }
 
     tenant.wolfCoins = Math.max(0, (tenant.wolfCoins || 500000) + coinsAmount);
+    if (coinsAmount > 0) {
+      tenant.totalWolfTokensAllocated = (tenant.totalWolfTokensAllocated || 500000) + coinsAmount;
+    }
     await tenant.save();
 
     // Broadcast socket event
