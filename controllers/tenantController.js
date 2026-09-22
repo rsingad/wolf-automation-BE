@@ -606,6 +606,10 @@ exports.approveTenantAdmin = async (req, res) => {
     });
   } catch (error) {
     console.error('Error updating tenant approval state:', error);
+    res.status(500).json({ error: 'Failed to update tenant approval status' });
+  }
+};
+
 // Wolf Master Command Center: Update Log Retention Days (15, 30, 60, 90, 180, 365 days)
 exports.updateLogRetentionAdmin = async (req, res) => {
   try {
