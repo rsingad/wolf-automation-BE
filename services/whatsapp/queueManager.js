@@ -132,9 +132,19 @@ async function processQueue(tenantId, remoteJid, sock, io) {
           ...(mediaOpts || {})
         });
         
+        // Detect urgent meeting / call request keywords (e.g., 'ramesh ko call', 'urgent meeting', 'urgent call', 'baat karwao')
+        const msgTextLower = (textContent || '').toLowerCase();
+        const urgentKeywords = ['call karo', 'call kar', 'call me', 'call kro', 'ramesh', 'meeting', 'miting', 'urgent', 'jaruri', 'baat karwao', 'baat karo'];
+        const isUrgentMsg = urgentKeywords.some(kw => msgTextLower.includes(kw));
+
         // EMIT TO DASHBOARD
         if (io) {
-          io.to(tenantId).emit('new-message', { customerId: customer._id, message: incomingMsg });
+          io.to(tenantId).emit('new-message', { 
+            customerId: customer._id, 
+            message: incomingMsg,
+            isUrgent: isUrgentMsg,
+            urgentReason: isUrgentMsg ? `🚨 Urgent Request Detected: "${textContent}"` : ''
+          });
         }
 
         // 3. Realistic Read Receipts Flow (Human Reading Delay of 1.5s to 3.5s)
