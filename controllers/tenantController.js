@@ -638,4 +638,42 @@ exports.updateLogRetentionAdmin = async (req, res) => {
   }
 };
 
+// 🕸️ Dynamic Website AI Knowledge Base Scraper Endpoint
+exports.scrapeWebsite = async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    const { url } = req.body;
+
+    if (!url || typeof url !== 'string' || url.trim().length < 4) {
+      return res.status(400).json({ error: 'Valid website URL is required' });
+    }
+
+    const tenant = await Tenant.findById(tenantId);
+    if (!tenant) {
+      return res.status(404).json({ error: 'Tenant organization not found' });
+    }
+
+    const scraperService = require('../services/scraperService');
+    const scrapedMarkdown = await scraperService.scrapeWebsiteContent(url);
+
+    // Auto-append scraped content to existing Knowledge Base
+    const existingKb = tenant.knowledgeBaseText ? tenant.knowledgeBaseText + '\n\n' : '';
+    const newKb = `${existingKb}--- [AUTO-SCRAPED FROM ${url} (${new Date().toLocaleDateString()})] ---\n${scrapedMarkdown}`;
+
+    tenant.businessWebsiteUrl = url;
+    tenant.knowledgeBaseText = newKb;
+    await tenant.save();
+
+    res.status(200).json({
+      success: true,
+      scrapedLength: scrapedMarkdown.length,
+      knowledgeBaseText: tenant.knowledgeBaseText,
+      message: `🎉 Successfully scraped website! Appended ${scrapedMarkdown.length.toLocaleString()} characters of business knowledge.`
+    });
+  } catch (error) {
+    console.error('Error in scrapeWebsite controller:', error.message);
+    res.status(500).json({ error: error.message || 'Failed to scrape website' });
+  }
+};
+
 
