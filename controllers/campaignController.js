@@ -85,6 +85,11 @@ exports.pauseCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
     const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'paused' }, { returnDocument: 'after' });
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) io.to(campaign.tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+    } catch (e) {}
     res.status(200).json({ success: true, campaign });
   } catch (err) {
     res.status(500).json({ error: 'Failed to pause' });
@@ -98,6 +103,11 @@ exports.resumeCampaign = async (req, res) => {
     // Force-clear processor lock and wake up processor immediately
     campaignManager.resetProcessorLock && campaignManager.resetProcessorLock(campaign.tenantId);
     campaignManager.startCampaignProcessor(campaign.tenantId);
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) io.to(campaign.tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+    } catch (e) {}
     res.status(200).json({ success: true, campaign });
   } catch (err) {
     res.status(500).json({ error: 'Failed to resume' });
@@ -139,6 +149,12 @@ exports.updateCampaignTemplate = async (req, res) => {
       campaignManager.startCampaignProcessor(campaign.tenantId);
       console.log(`[Campaign Controller] 🔥 Processor restarted after settings update for campaign "${campaign.name}" (was: ${wasPaused ? 'paused→resumed' : 'running'})`);
     }
+
+    try {
+      const { getIo } = require('../config/socket');
+      const io = getIo();
+      if (io) io.to(campaign.tenantId.toString()).emit('campaign-progress', { campaignId: campaign._id, campaign });
+    } catch (e) {}
 
     const resumeMsg = wasPaused ? ' Campaign auto-resumed!' : '';
     console.log(`[Campaign Controller] 📝 Mid-Campaign Settings updated for campaign "${campaign.name}" (${campaign._id})`);
