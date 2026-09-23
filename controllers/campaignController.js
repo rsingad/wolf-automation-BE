@@ -99,6 +99,22 @@ exports.pauseCampaign = async (req, res) => {
 exports.resumeCampaign = async (req, res) => {
   try {
     const { campaignId } = req.params;
+    const existing = await Campaign.findById(campaignId);
+    if (!existing) return res.status(404).json({ error: 'Campaign not found' });
+
+    // Enforce 1 active running campaign per organization
+    const activeOther = await Campaign.findOne({
+      tenantId: existing.tenantId,
+      _id: { $ne: campaignId },
+      status: 'running'
+    });
+
+    if (activeOther) {
+      return res.status(400).json({ 
+        error: `Only 1 campaign can be active at a time. Campaign "${activeOther.name}" is currently running. Please pause it first.` 
+      });
+    }
+
     const campaign = await Campaign.findByIdAndUpdate(campaignId, { status: 'running', pauseReason: '' }, { returnDocument: 'after' });
     // Force-clear processor lock and wake up processor immediately
     campaignManager.resetProcessorLock && campaignManager.resetProcessorLock(campaign.tenantId);
@@ -133,10 +149,18 @@ exports.updateCampaignTemplate = async (req, res) => {
     const wasPaused = campaignBefore.status === 'paused';
     const wasRunning = campaignBefore.status === 'running';
 
-    // ✅ If campaign was paused, auto-resume it when settings are saved
+    // ✅ If campaign was paused, check if another active campaign is running before auto-resuming
     if (wasPaused) {
-      updateFields.status = 'running';
-      updateFields.pauseReason = '';
+      const activeOther = await Campaign.findOne({
+        tenantId: campaignBefore.tenantId,
+        _id: { $ne: campaignId },
+        status: 'running'
+      });
+
+      if (!activeOther) {
+        updateFields.status = 'running';
+        updateFields.pauseReason = '';
+      }
     }
 
     const campaign = await Campaign.findByIdAndUpdate(campaignId, updateFields, { returnDocument: 'after' });
