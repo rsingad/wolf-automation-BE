@@ -235,15 +235,28 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
 4. Output ONLY the raw message text. DO NOT include markdown, quote marks, or AI commentary.
 5. Use realistic typing variations and warm human phrasing every time.`;
 
-        const completion = await openai.chat.completions.create({
-          model: 'openai/gpt-oss-20b',
-          messages: [{ role: 'user', content: aiPrompt }],
-          temperature: 0.9, // Higher temp for more variety
-        });
-        const aiRes = (completion.choices[0].message.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
-        if (aiRes && aiRes.length > 5) {
-          messageText = aiRes;
-          aiGenerationSuccess = true;
+        const modelsToTry = [
+          'openai/gpt-oss-20b',
+          'qwen/qwen3.8-27b',
+          'openai/gpt-oss-120b'
+        ];
+
+        for (const modelName of modelsToTry) {
+          try {
+            const completion = await openai.chat.completions.create({
+              model: modelName,
+              messages: [{ role: 'user', content: aiPrompt }],
+              temperature: 0.9, // Higher temp for more variety
+            });
+            const aiRes = (completion.choices[0].message.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+            if (aiRes && aiRes.length > 5) {
+              messageText = aiRes;
+              aiGenerationSuccess = true;
+              break; // Success! Exit model loop
+            }
+          } catch (mErr) {
+            console.warn(`[Campaign] ⚠️ Model ${modelName} failed for ${phone}: ${mErr.message}. Trying next fallback model...`);
+          }
         }
       } catch (aiErr) {
         console.warn(`[Campaign] ⚠️ Groq AI API Error for ${phone}: ${aiErr.message}.`);
