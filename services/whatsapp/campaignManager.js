@@ -236,7 +236,7 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
 5. Use realistic typing variations and warm human phrasing every time.`;
 
         const completion = await openai.chat.completions.create({
-          model: 'llama-3.3-70b-versatile',
+          model: 'openai/gpt-oss-20b',
           messages: [{ role: 'user', content: aiPrompt }],
           temperature: 0.9, // Higher temp for more variety
         });

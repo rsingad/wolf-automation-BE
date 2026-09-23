@@ -266,10 +266,9 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     
     // Ultra-Fast Groq Models in priority order (Currently Active Live Supported Models)
     const modelsToTry = [
-      'llama-3.3-70b-versatile',
-      'llama-3.1-8b-instant',
-      'mixtral-8x7b-32768',
-      'gemma2-9b-it'
+      'openai/gpt-oss-20b',
+      'qwen/qwen3.8-27b',
+      'openai/gpt-oss-120b'
     ];
 
     let completion = null;
@@ -503,7 +502,7 @@ GENERAL (if it is just a normal greeting or basic question)
 Message: "${messageText}"`;
 
     const completion = await openai.chat.completions.create({
-      model: 'llama-3.1-8b-instant', // Fast model for quick classification
+      model: 'openai/gpt-oss-20b', // Fast model for quick classification
       messages: [{ role: 'user', content: prompt }],
       max_tokens: 10,
       temperature: 0.1,
