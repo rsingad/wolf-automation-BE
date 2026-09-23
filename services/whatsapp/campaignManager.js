@@ -213,6 +213,7 @@ async function startCampaignProcessor(tenantId) {
       // Fallback: Default to raw campaign template with clean name substitution in case Groq AI fails
       const cleanName = getCleanName(contact.name);
       let messageText = activeTemplatePrompt.replace(/\{name\}/gi, cleanName === 'Boss' ? 'Boss' : cleanName);
+      let aiGenerationSuccess = false;
 
       try {
         const { OpenAI } = require('openai');
@@ -242,10 +243,17 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         const aiRes = (completion.choices[0].message.content || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
         if (aiRes && aiRes.length > 5) {
           messageText = aiRes;
+          aiGenerationSuccess = true;
         }
       } catch (aiErr) {
-        console.warn(`[Campaign] ⚠️ Groq AI API Quota/Limit Warning for ${phone}: ${aiErr.message}. Falling back to raw template message.`);
-        // Fallback: Use the original template text so campaign message sends smoothly without stopping!
+        console.warn(`[Campaign] ⚠️ Groq AI API Error for ${phone}: ${aiErr.message}.`);
+      }
+
+      // 🛡️ PROMPT LEAK PROTECTION: If AI generation failed and template looks like complex prompt instructions, do NOT send raw instructions!
+      const isInstructionPrompt = /GREETING|RULES|INSTRUCTIONS|RULES FOR|DO NOT|CLOSING:|EXACT CLOSING|CONTENT TO INCLUDE/i.test(activeTemplatePrompt);
+      if (!aiGenerationSuccess && isInstructionPrompt) {
+        console.error(`[Campaign] 🚨 Prompt Leak Guard Blocked sending raw instruction prompt to ${phone}.`);
+        messageText = `Hello ${cleanName !== 'Boss' ? cleanName : ''}, Hope you are doing well! Let us know if you need any assistance with your tech projects.`;
       }
 
       // 🛡️ ANTI-BAN SHIELD 1: Check for URLs & 2-Step Broadcast logic
