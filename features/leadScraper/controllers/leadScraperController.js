@@ -5,13 +5,13 @@ const { scrapeGoogleMapsLeads } = require('../services/googleMapsScraperService'
 exports.searchLeads = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { query, city } = req.body;
+    const { query, city, engine = 'playwright' } = req.body;
 
     if (!query || !query.trim()) {
       return res.status(400).json({ error: 'Search query is required (e.g. "Gyms", "Real Estate")' });
     }
 
-    const leads = await scrapeGoogleMapsLeads(query.trim(), city ? city.trim() : '');
+    const leads = await scrapeGoogleMapsLeads(query.trim(), city ? city.trim() : '', engine);
     
     // Auto-save scraped leads to database under tenant
     const savedDocs = [];

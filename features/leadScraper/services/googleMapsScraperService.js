@@ -156,23 +156,25 @@ async function scrapeGoogleMapsWithPlaywrightBot(searchQuery) {
 /**
  * Real-time Google Maps & Local Business Lead Scraper Service
  */
-exports.scrapeGoogleMapsLeads = async (query, city = '') => {
+exports.scrapeGoogleMapsLeads = async (query, city = '', engineChoice = 'playwright') => {
   const searchQuery = city ? `${query} in ${city}` : query;
-  console.log(`[Google Maps Scraper Engine] Initiating extraction for: "${searchQuery}"`);
+  console.log(`[Google Maps Scraper Engine: ${engineChoice}] Initiating extraction for: "${searchQuery}"`);
 
   let results = [];
 
-  // 1. Primary Engine: Playwright Real Browser Automated Scraper Bot
-  try {
-    results = await scrapeGoogleMapsWithPlaywrightBot(searchQuery);
-    console.log(`[Google Maps Scraper] Playwright Bot harvested ${results.length} leads.`);
-  } catch (botErr) {
-    console.warn(`[Google Maps Scraper] Playwright Bot Execution Warning: ${botErr.message}`);
+  // 1. Playwright Headless Browser Bot Mode
+  if (engineChoice === 'playwright' || engineChoice === 'auto') {
+    try {
+      results = await scrapeGoogleMapsWithPlaywrightBot(searchQuery);
+      console.log(`[Google Maps Scraper] Playwright Bot harvested ${results.length} leads.`);
+    } catch (botErr) {
+      console.warn(`[Google Maps Scraper] Playwright Bot Execution Warning: ${botErr.message}`);
+    }
   }
 
-  // 2. Secondary Engine: Official Google Places API (if API Key present)
+  // 2. Official Google Places API Engine
   const apiKey = process.env.GOOGLE_MAPS_API_KEY || process.env.GOOGLE_PLACES_API_KEY;
-  if (results.length === 0 && apiKey) {
+  if ((engineChoice === 'places_api' || (results.length === 0 && engineChoice !== 'web_search')) && apiKey) {
     try {
       const textSearchUrl = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(searchQuery)}&key=${apiKey}`;
       const response = await axios.get(textSearchUrl, { timeout: 10000 });
