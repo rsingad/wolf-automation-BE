@@ -292,7 +292,7 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
           completion = await openai.chat.completions.create({
             model: model,
             messages: messagesForAI,
-            max_tokens: 150,
+            max_tokens: 500,
             temperature: 0.3,
             frequency_penalty: 0.3,
             presence_penalty: 0.3,
