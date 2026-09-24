@@ -22,16 +22,27 @@ exports.scrapeLinkedInDorks = async (dorkQuery) => {
   const results = [];
 
   try {
-    const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(dorkQuery)}`;
-    const response = await axios.get(searchUrl, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
-        'Accept-Language': 'en-US,en;q=0.9'
-      },
-      timeout: 10000
-    });
-
-    const html = response.data || '';
+    let html = '';
+    try {
+      const searchUrl = `https://html.duckduckgo.com/html/?q=${encodeURIComponent(dorkQuery)}`;
+      const response = await axios.get(searchUrl, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+          'Accept-Language': 'en-US,en;q=0.9'
+        },
+        timeout: 5000
+      });
+      html = response.data || '';
+    } catch (eDDG) {
+      try {
+        const bingUrl = `https://www.bing.com/search?q=${encodeURIComponent(dorkQuery)}`;
+        const resBing = await axios.get(bingUrl, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          timeout: 5000
+        });
+        html = resBing.data || '';
+      } catch (eBing) {}
+    }
 
     // Regex patterns for emails, phone numbers, and names
     const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
