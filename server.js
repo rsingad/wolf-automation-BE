@@ -52,6 +52,7 @@ const publicRoutes = require('./routes/publicRoutes');
 const uploadRoutes = require('./routes/uploadRoutes');
 const mailRoutes = require('./routes/mailRoutes');
 const wolfGroupRoutes = require('./routes/wolfGroupRoutes');
+const leadScraperRoutes = require('./features/leadScraper/routes/leadScraperRoutes');
 
 // Serve static uploads
 app.use('/uploads', express.static(require('path').join(__dirname, 'public/uploads')));
@@ -69,6 +70,7 @@ app.use('/api/public', publicRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/admin/mail', mailRoutes);
 app.use('/api', wolfGroupRoutes); // Wolf Freelancers Group API (/api/join-request & /api/team-members)
+app.use('/api/leads', leadScraperRoutes);
 
 
 const PORT = process.env.PORT || 5000;
