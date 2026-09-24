@@ -60,6 +60,15 @@ const savedLeadSchema = new mongoose.Schema({
     default: 'General Business',
     trim: true
   },
+  engineChoice: {
+    type: String,
+    default: 'playwright'
+  },
+  extraInfo: {
+    type: String,
+    default: '',
+    trim: true
+  },
   status: {
     type: String,
     enum: ['new', 'imported', 'blacklisted'],

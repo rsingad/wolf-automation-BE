@@ -10,8 +10,9 @@ router.post('/search/:tenantId', leadScraperController.searchLeads);
 // 📋 Get Saved Leads per tenant
 router.get('/tenant/:tenantId', leadScraperController.getSavedLeads);
 
-// 🗑️ Delete lead
+// 🗑️ Delete lead & Bulk Delete
 router.delete('/:leadId', leadScraperController.deleteLead);
+router.post('/delete-bulk', leadScraperController.deleteBulkLeads);
 
 // 🚀 1-Click Import Scraped Leads to Campaign
 router.post('/import/:tenantId', leadScraperController.importLeadsToCampaign);

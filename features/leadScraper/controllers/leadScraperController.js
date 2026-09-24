@@ -31,6 +31,8 @@ exports.searchLeads = async (req, res) => {
           description: item.description || '',
           socialLinks: item.socialLinks || {},
           category: item.category,
+          engineChoice: engine,
+          extraInfo: item.extraInfo || `Scraped via ${engine} for query "${query.trim()}" in ${city || 'Local Region'}`,
           status: 'new'
         });
         savedDocs.push(doc);
@@ -62,7 +64,7 @@ exports.getSavedLeads = async (req, res) => {
   }
 };
 
-// 🗑️ Delete lead
+// 🗑️ Delete single lead
 exports.deleteLead = async (req, res) => {
   try {
     const { leadId } = req.params;
@@ -70,6 +72,20 @@ exports.deleteLead = async (req, res) => {
     res.status(200).json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Failed to delete lead' });
+  }
+};
+
+// 🗑️ Bulk Delete Selected Leads
+exports.deleteBulkLeads = async (req, res) => {
+  try {
+    const { leadIds } = req.body;
+    if (!leadIds || !Array.isArray(leadIds) || leadIds.length === 0) {
+      return res.status(400).json({ error: 'Select at least 1 lead to delete' });
+    }
+    await SavedLead.deleteMany({ _id: { $in: leadIds } });
+    res.status(200).json({ success: true, message: `Successfully deleted ${leadIds.length} leads` });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to bulk delete leads' });
   }
 };
 
