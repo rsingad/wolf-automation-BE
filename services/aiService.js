@@ -368,11 +368,10 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
     }
 
     // Auto-extract [UPDATE_MOOD: MOOD_NAME | Sentiment Summary] tag
-    const moodMatch = aiReply.match(/\[UPDATE_MOOD:\s*([A-Z_]+)\s*\|\s*([^\]]+)\]/i);
+    const moodMatch = aiReply.match(/[\[\(]?UPDATE_MOOD:\s*([A-Z_]+)\s*\|\s*([^\]\)]+)[\]\)]?/i);
     if (moodMatch && customer) {
       const detectedMood = moodMatch[1].toUpperCase().trim();
       const sentimentSummary = moodMatch[2].trim();
-      aiReply = aiReply.replace(/\[UPDATE_MOOD:\s*[^\]]+\]/gi, '').trim();
 
       const validMoods = ['HAPPY', 'SAD_TIRED', 'ANGRY_UPSET', 'FLIRTY_PLAYFUL', 'STRESSED', 'NEUTRAL'];
       if (validMoods.includes(detectedMood)) {
@@ -398,6 +397,14 @@ CRITICAL: Read ${targetCustomerName}'s last message carefully and reply directly
         }
       }
     }
+
+    // 🛡️ STRICT TAG SANITIZATION PASS: Remove ALL internal system tags so NOTHING ever leaks to customers
+    aiReply = aiReply
+      .replace(/[\[\(]?UPDATE_MOOD:[^\]\)]+[\]\)]?/gi, '')
+      .replace(/[\[\(]?SET_TAG:[^\]\)]+[\]\)]?/gi, '')
+      .replace(/[\[\(]?SAVE_FACT:[^\]\)]+[\]\)]?/gi, '')
+      .replace(/UPDATE_MOOD:\s*[A-Z_]+\s*\|[^\n]+/gi, '')
+      .trim();
 
     // Log Token Usage & Analytics
     try {
