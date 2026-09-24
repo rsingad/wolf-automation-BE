@@ -41,3 +41,5 @@ logs/
 *.swp
 
 /test_custom_delay.js
+test_*.js
+bing.html
