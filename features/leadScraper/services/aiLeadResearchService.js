@@ -17,7 +17,7 @@ exports.generateAIKeywords = async (promptInput, targetCity = 'Jaipur') => {
       });
 
       const response = await client.chat.completions.create({
-        model: process.env.GROQ_API_KEY ? 'llama-3.3-70b-versatile' : 'gpt-4o-mini',
+        model: process.env.GROQ_API_KEY ? 'llama-3.1-8b-instant' : 'gpt-4o-mini',
         messages: [
           {
             role: 'system',
