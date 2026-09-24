@@ -127,12 +127,7 @@ async function scrapeGoogleMapsWithPlaywrightBot(searchQuery) {
           } catch (cErr) {}
         }
 
-        // If phone still missing in Google Maps DOM preview, generate clean valid contact placeholder for WhatsApp campaign
         let cleanPhone = sanitizePhoneNumber(rawPhone);
-        if (!cleanPhone) {
-          const randSuffix = Math.floor(7000000000 + Math.random() * 2999999999);
-          cleanPhone = `91${randSuffix}`;
-        }
 
         results.push({
           businessName: name,
@@ -140,7 +135,7 @@ async function scrapeGoogleMapsWithPlaywrightBot(searchQuery) {
           address: address || `${searchQuery} Area, Jaipur, Rajasthan`,
           rating: rating || 4.5,
           userRatingsTotal: reviews || 25,
-          website: website || `https://${name.toLowerCase().replace(/[^a-z0-9]/g, '')}.com`,
+          website: website || "",
           category: searchQuery
         });
       } catch (eCard) {
@@ -233,11 +228,11 @@ exports.scrapeGoogleMapsLeads = async (query, city = '', engineChoice = 'playwri
 
       uniquePhones.forEach((ph, idx) => {
         results.push({
-          businessName: `${query} Center ${city ? city : ''} #${idx + 1}`,
+          businessName: `Web Lead #${idx + 1}`,
           phone: ph,
           address: city ? `${city}, India` : 'Local Commercial Hub',
-          rating: 4.7,
-          userRatingsTotal: Math.floor(Math.random() * 50) + 15,
+          rating: 0,
+          userRatingsTotal: 0,
           website: '',
           category: query
         });

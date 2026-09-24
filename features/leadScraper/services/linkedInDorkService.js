@@ -58,10 +58,11 @@ exports.scrapeLinkedInDorks = async (dorkQuery) => {
 
     const uniqueProfiles = [...new Set(linkMatches)];
 
-    for (let i = 0; i < Math.max(uniqueProfiles.length, emailsFound.length, 5); i++) {
-      const profileUrl = uniqueProfiles[i] || `https://linkedin.com/in/executive-${i + 1}`;
-      const email = emailsFound[i] || `contact@executive-${i + 1}.com`;
-      const phone = phonesFound[i] || `91${Math.floor(7000000000 + Math.random() * 2999999999)}`;
+    const maxLen = Math.max(uniqueProfiles.length, emailsFound.length, phonesFound.length);
+    for (let i = 0; i < maxLen; i++) {
+      const profileUrl = uniqueProfiles[i] || "";
+      const email = emailsFound[i] || "";
+      const phone = phonesFound[i] || "";
 
       // Deriving name from URL slug
       let name = 'Executive Partner';
