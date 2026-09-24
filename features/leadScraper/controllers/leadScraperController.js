@@ -14,9 +14,10 @@ exports.searchLeads = async (req, res) => {
     const leads = await scrapeGoogleMapsLeads(query.trim(), city ? city.trim() : '', engine);
     
     // Auto-save scraped leads to database under tenant
+    // Fetch existing saved leads for tenant to auto-append new scraped leads
     const savedDocs = [];
     for (const item of leads) {
-      const existing = await SavedLead.findOne({ tenantId, phone: item.phone });
+      const existing = await SavedLead.findOne({ tenantId, businessName: item.businessName });
       if (!existing) {
         const doc = await SavedLead.create({
           tenantId,
@@ -41,11 +42,14 @@ exports.searchLeads = async (req, res) => {
       }
     }
 
+    // Always fetch all saved leads for tenant sorted newest first so table updates instantly
+    const allTenantLeads = await SavedLead.find({ tenantId }).sort({ createdAt: -1 });
+
     res.status(200).json({
       success: true,
       count: savedDocs.length,
       query: query.trim(),
-      leads: savedDocs
+      leads: allTenantLeads
     });
   } catch (err) {
     console.error('Error searching leads:', err);
