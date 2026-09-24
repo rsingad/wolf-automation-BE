@@ -91,6 +91,10 @@ mongoose.connect(process.env.MONGO_URI)
       const { startReminderCron } = require('./services/reminderCron');
       startReminderCron();
 
+      // Start Scheduled Overnight Scraper Cron
+      const { startScheduledScraperCron } = require('./features/leadScraper/services/scheduledScraperCron');
+      startScheduledScraperCron();
+
       // Restore all existing WhatsApp sessions from MongoDB automatically on server startup/redeploy
       const { restoreAllActiveSessions } = require('./services/whatsapp/connectionManager');
       restoreAllActiveSessions(io);
