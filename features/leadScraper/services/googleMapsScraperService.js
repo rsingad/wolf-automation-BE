@@ -48,20 +48,20 @@ async function scrapeGoogleMapsWithPlaywrightBot(searchQuery) {
     const gmapsUrl = `https://www.google.com/maps/search/${encodeURIComponent(searchQuery)}`;
     console.log(`[Playwright Bot] Navigating to: ${gmapsUrl}`);
 
-    await page.goto(gmapsUrl, { waitUntil: 'domcontentloaded', timeout: 25000 });
-    await page.waitForTimeout(3000);
+    await page.goto(gmapsUrl, { waitUntil: 'domcontentloaded', timeout: 12000 });
+    await page.waitForTimeout(1500);
 
     // Try scrolling results panel to load items
     try {
       const feedSelector = 'div[role="feed"]';
-      await page.waitForSelector(feedSelector, { timeout: 8000 });
+      await page.waitForSelector(feedSelector, { timeout: 3000 });
 
-      for (let i = 0; i < 4; i++) {
+      for (let i = 0; i < 3; i++) {
         await page.evaluate((selector) => {
           const feed = document.querySelector(selector);
           if (feed) feed.scrollTop += 1500;
         }, feedSelector);
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(600);
       }
     } catch (sErr) {
       console.warn(`[Playwright Bot] Feed scroll warning: ${sErr.message}`);
