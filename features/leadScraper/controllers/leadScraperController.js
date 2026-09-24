@@ -27,6 +27,9 @@ exports.searchLeads = async (req, res) => {
           rating: item.rating,
           userRatingsTotal: item.userRatingsTotal,
           website: item.website,
+          email: item.email || '',
+          description: item.description || '',
+          socialLinks: item.socialLinks || {},
           category: item.category,
           status: 'new'
         });

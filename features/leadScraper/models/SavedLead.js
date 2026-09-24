@@ -40,6 +40,21 @@ const savedLeadSchema = new mongoose.Schema({
     default: '',
     trim: true
   },
+  email: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  description: {
+    type: String,
+    default: '',
+    trim: true
+  },
+  socialLinks: {
+    instagram: { type: String, default: '' },
+    facebook: { type: String, default: '' },
+    linkedin: { type: String, default: '' }
+  },
   category: {
     type: String,
     default: 'General Business',
