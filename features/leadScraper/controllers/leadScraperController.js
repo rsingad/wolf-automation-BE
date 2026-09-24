@@ -1,17 +1,23 @@
 const SavedLead = require('../models/SavedLead');
 const { scrapeGoogleMapsLeads } = require('../services/googleMapsScraperService');
+const { scrapeLinkedInDorks } = require('../services/linkedInDorkService');
 
-// 🔍 Search and Scrape Google Maps Leads
+// 🔍 Search and Scrape Google Maps & LinkedIn Dorking Leads
 exports.searchLeads = async (req, res) => {
   try {
     const { tenantId } = req.params;
     const { query, city, engine = 'playwright' } = req.body;
 
     if (!query || !query.trim()) {
-      return res.status(400).json({ error: 'Search query is required (e.g. "Gyms", "Real Estate")' });
+      return res.status(400).json({ error: 'Search query is required' });
     }
 
-    const leads = await scrapeGoogleMapsLeads(query.trim(), city ? city.trim() : '', engine);
+    let leads = [];
+    if (engine === 'dorking' || query.includes('site:')) {
+      leads = await scrapeLinkedInDorks(query.trim());
+    } else {
+      leads = await scrapeGoogleMapsLeads(query.trim(), city ? city.trim() : '', engine);
+    }
     
     // Auto-save scraped leads to database under tenant
     // Fetch existing saved leads for tenant to auto-append new scraped leads
