@@ -19,7 +19,7 @@ const campaignSchema = new mongoose.Schema({
   customDelayMinSeconds: { type: Number, default: 15 },
   customDelayMaxSeconds: { type: Number, default: 40 },
   enableTwoStepShield: { type: Boolean, default: true }, // 2-Step Anti-Ban Shield (Strips URLs from cold 1st broadcast)
-  autoOptOutFooter: { type: Boolean, default: true }, // Automatically append (Reply STOP to opt out)
+  autoOptOutFooter: { type: Boolean, default: false }, // Default false to prevent WhatsApp NLP anti-spam flagging
   batchSplitSize: { type: Number, default: 0 }, // If > 0, auto-split large contact lists into mini queued batches
   promptVariationMode: { type: Boolean, default: true }, // Auto variation of AI prompt per batch
   dripNodes: [{

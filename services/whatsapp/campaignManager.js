@@ -297,8 +297,8 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         console.log(`[Anti-Ban Shield] 🛡️ Stripped URL from cold broadcast for ${phone}. Saved pending link: ${extractedUrl}`);
       }
 
-      // 🛡️ ANTI-BAN SHIELD 2: Auto Opt-Out Footer
-      if (campaign.autoOptOutFooter !== false && !messageText.toLowerCase().includes('stop')) {
+      // 🛡️ ANTI-BAN SHIELD 2: Auto Opt-Out Footer (Disabled by default to avoid WhatsApp NLP spam flagging)
+      if (campaign.autoOptOutFooter === true && !messageText.toLowerCase().includes('stop')) {
         messageText += `\n\n_(Reply STOP to opt out)_`;
       }
 
