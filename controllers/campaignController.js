@@ -4,7 +4,7 @@ const campaignManager = require('../services/whatsapp/campaignManager'); // Back
 exports.createCampaign = async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const { name, template, mediaUrl, safetyMode, customDelayMinSeconds, customDelayMaxSeconds, dripNodes, contacts, batchSplitSize, enableTwoStepShield, autoOptOutFooter } = req.body;
+    const { name, template, mediaUrl, safetyMode, customDelayMinSeconds, customDelayMaxSeconds, dripNodes, contacts, batchSplitSize, enableTwoStepShield, autoOptOutFooter, coldTemplate, warmThreshold } = req.body;
 
     // Validate
     if (!name || !template || !contacts || contacts.length === 0) {
@@ -36,7 +36,9 @@ exports.createCampaign = async (req, res) => {
         customDelayMinSeconds: parseInt(customDelayMinSeconds) || 15,
         customDelayMaxSeconds: parseInt(customDelayMaxSeconds) || 40,
         enableTwoStepShield: enableTwoStepShield !== false,
-        autoOptOutFooter: autoOptOutFooter !== false,
+        autoOptOutFooter: autoOptOutFooter === true,
+        coldTemplate: coldTemplate || '',
+        warmThreshold: parseInt(warmThreshold) || 1,
         batchSplitSize: chunkSize,
         dripNodes: dripNodes || [],
         status: initialStatus,

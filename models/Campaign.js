@@ -4,6 +4,7 @@ const contactSchema = new mongoose.Schema({
   name: { type: String, default: '' },
   phone: { type: String, required: true },
   status: { type: String, enum: ['pending', 'sent', 'failed', 'ignored'], default: 'pending' },
+  contactType: { type: String, enum: ['warm', 'cold', 'unknown'], default: 'unknown' }, // 🧠 Smart Cold/Warm Detection tag
   error: { type: String },
   processedAt: { type: Date },
   sentAt: { type: Date },
@@ -20,6 +21,8 @@ const campaignSchema = new mongoose.Schema({
   customDelayMaxSeconds: { type: Number, default: 40 },
   enableTwoStepShield: { type: Boolean, default: true }, // 2-Step Anti-Ban Shield (Strips URLs from cold 1st broadcast)
   autoOptOutFooter: { type: Boolean, default: false }, // Default false to prevent WhatsApp NLP anti-spam flagging
+  coldTemplate: { type: String, default: '' }, // 🧠 Short hook message for NEW/COLD contacts (no prior chat history)
+  warmThreshold: { type: Number, default: 1 }, // Min. incoming customer messages needed to be considered "Warm"
   batchSplitSize: { type: Number, default: 0 }, // If > 0, auto-split large contact lists into mini queued batches
   promptVariationMode: { type: Boolean, default: true }, // Auto variation of AI prompt per batch
   dripNodes: [{

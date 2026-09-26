@@ -206,9 +206,35 @@ async function startCampaignProcessor(tenantId) {
         continue; // Skip to next contact immediately
       }
 
-      // Re-fetch fresh campaign template prompt from database so mid-campaign prompt edits apply IMMEDIATELY to the next contact!
+      // Re-fetch fresh campaign settings (template + cold template) from DB
       const currentCampaignDoc = await Campaign.findById(campaign._id);
-      const activeTemplatePrompt = (currentCampaignDoc && currentCampaignDoc.template) ? currentCampaignDoc.template : campaign.template;
+      const mainTemplatePrompt = (currentCampaignDoc && currentCampaignDoc.template) ? currentCampaignDoc.template : campaign.template;
+
+      // ─────────────────────────────────────────────────────────────────────
+      // 🧠 SMART COLD/WARM DETECTION ENGINE
+      // Check if this contact has ever sent us an incoming message (Warm)
+      // or is a brand new cold lead (Cold)
+      // ─────────────────────────────────────────────────────────────────────
+      let isWarmContact = false;
+      if (targetCustomer) {
+        const incomingMsgCount = await Message.countDocuments({
+          tenantId,
+          customerId: targetCustomer._id,
+          sender: 'customer'
+        });
+        const warmThreshold = (currentCampaignDoc && currentCampaignDoc.warmThreshold) ? currentCampaignDoc.warmThreshold : 1;
+        isWarmContact = incomingMsgCount >= warmThreshold;
+      }
+      console.log(`[Campaign] 🌡️ Contact ${phone} → ${isWarmContact ? '🟢 WARM (existing chat history)' : '❄️ COLD (new/no prior chat)'}`);
+
+      // 🎯 DUAL TEMPLATE SELECTOR: Warm → Full Pitch | Cold → Short Hook
+      const coldTemplateText = (currentCampaignDoc && currentCampaignDoc.coldTemplate) ? currentCampaignDoc.coldTemplate.trim() : '';
+      const hasColdTemplate = coldTemplateText.length > 5;
+      const activeTemplatePrompt = isWarmContact
+        ? mainTemplatePrompt                   // Warm contact → Full pitch/offer
+        : (hasColdTemplate
+            ? coldTemplateText                 // Cold contact → Short hook template
+            : mainTemplatePrompt);             // Cold fallback → same template if no cold template set
 
       // Fallback: Default to raw campaign template with clean name substitution in case Groq AI fails
       const cleanName = getCleanName(contact.name);
@@ -370,10 +396,11 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         const startProcTime = campaign.contacts[pendingContactIndex].processedAt || nowTime;
         const durationMs = Math.max(0, nowTime - new Date(startProcTime));
 
-        // Update contact status & record exact duration
+        // Update contact status, record exact duration & warm/cold type
         campaign.contacts[pendingContactIndex].status = 'sent';
         campaign.contacts[pendingContactIndex].sentAt = nowTime;
         campaign.contacts[pendingContactIndex].executionDurationMs = durationMs;
+        campaign.contacts[pendingContactIndex].contactType = isWarmContact ? 'warm' : 'cold'; // 🧠 Tag warm/cold
         campaign.progress.sent += 1;
 
         // Ensure customer record updated
@@ -487,7 +514,15 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
         maxDelay = 240000;
       }
 
-      console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${currentSafetyMode || 'safe'}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
+      // ⏱️ DUAL PACING: Cold contacts get forced safe/stealth delay to prevent bans
+      if (!isWarmContact) {
+        // Cold contacts: enforce minimum 60s-120s regardless of safety mode selected
+        minDelay = Math.max(minDelay, 60000);
+        maxDelay = Math.max(maxDelay, 120000);
+        console.log(`[Campaign] ❄️ Cold contact detected — overriding delay to minimum 60-120s for anti-ban safety.`);
+      }
+
+      console.log(`[Campaign] 🛡️ Anti-Ban Pacing (${currentSafetyMode || 'safe'}${!isWarmContact ? ' + Cold Override' : ''}): Waiting ${Math.round(minDelay/1000)} to ${Math.round(maxDelay/1000)} seconds before next contact...`);
       
       // ✅ Interruptible sleep — wakes up immediately if a newer processor takes over (resetProcessorLock called)
       const sleepResult = await interruptibleDelay(key, myGeneration, minDelay, maxDelay);
