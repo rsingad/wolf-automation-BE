@@ -471,8 +471,8 @@ CRITICAL RULES FOR 100% HUMAN SIMULATION (NO AI LOOK & NO BAN):
       let maxDelay = 90000;
       
       if (currentSafetyMode === 'custom') {
-        minDelay = (currentMinSec || 15) * 1000;
-        maxDelay = (currentMaxSec || 40) * 1000;
+        minDelay = Math.max(30, (currentMinSec || 30)) * 1000;
+        maxDelay = Math.max(minDelay / 1000, (currentMaxSec || 60)) * 1000;
       } else if (currentSafetyMode === 'fast') {
         minDelay = 8000;  // 8s - 15s
         maxDelay = 15000;
