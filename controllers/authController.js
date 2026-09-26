@@ -5,10 +5,10 @@ const jwt = require('jsonwebtoken');
 // Register a new Tenant (Business Owner)
 exports.register = async (req, res) => {
   try {
-    const { name, email, password } = req.body;
+    const { name, email, password, contactNumber } = req.body;
 
-    if (!name || !email || !password) {
-      return res.status(400).json({ error: 'Please provide all fields' });
+    if (!name || !email || !password || !contactNumber) {
+      return res.status(400).json({ error: 'Please provide all fields, including contact number' });
     }
 
     const existingTenant = await Tenant.findOne({ email });
@@ -29,6 +29,7 @@ exports.register = async (req, res) => {
       name,
       email,
       password: hashedPassword,
+      contactNumber,
       status: isMasterAdminEmail ? 'active' : 'pending_approval',
       isApproved: isMasterAdminEmail,
       role: isMasterAdminEmail ? 'master_admin' : 'tenant'
