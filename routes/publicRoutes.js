@@ -11,11 +11,43 @@ const openai = new OpenAI({
   baseURL: 'https://api.groq.com/openai/v1',
 });
 
-// GET /api/public/stats - 100% Pure Real MongoDB Metrics (No Fake Offsets / No Memory Loops)
+const PageView = require('../models/PageView');
+
+// POST /api/public/track-visit - Log real website visit & visitor ID
+router.post('/track-visit', async (req, res) => {
+  try {
+    const { visitorId, path } = req.body;
+    if (!visitorId) {
+      return res.status(400).json({ success: false, error: 'visitorId required' });
+    }
+
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    const userAgent = req.headers['user-agent'];
+
+    await PageView.create({
+      visitorId,
+      ip,
+      userAgent,
+      path: path || '/'
+    });
+
+    res.status(200).json({ success: true });
+  } catch (error) {
+    console.error('Error tracking page visit:', error);
+    res.status(500).json({ success: false });
+  }
+});
+
+// GET /api/public/stats - 100% Pure Real MongoDB Metrics (No Fake Offsets)
 router.get('/stats', async (req, res) => {
   try {
-    const totalCustomers = await Customer.countDocuments();
-    const totalMessages = await Message.countDocuments();
+    // 1. Total Web Views = Total page views logged in MongoDB
+    const totalWebViews = await PageView.countDocuments();
+    
+    // 2. Web View Users = Unique Visitors (Distinct Visitor IDs)
+    const distinctVisitors = await PageView.distinct('visitorId');
+    const webViewUsers = distinctVisitors ? distinctVisitors.length : 0;
+
     const activeTenants = await Tenant.countDocuments({ status: 'active' });
     
     // Get today's searches / usage logs
@@ -43,8 +75,8 @@ router.get('/stats', async (req, res) => {
         ];
 
     const statsPayload = {
-      webViewUsers: totalCustomers,
-      totalWebViews: totalMessages,
+      webViewUsers: webViewUsers,
+      totalWebViews: totalWebViews,
       activeBusinesses: activeTenants || 1,
       liveSearchesToday: searchesToday,
       sampleQueries
