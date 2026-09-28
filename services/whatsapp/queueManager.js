@@ -201,8 +201,40 @@ async function processQueue(tenantId, remoteJid, sock, io) {
             customerId: customer._id,
             sender: 'bot',
             content: stopMsgText,
-            messageId: sentStop.key.id
+            messageId: messageKey.id
           });
+          if (io) io.to(tenantId).emit('customer-updated', customer);
+          continue;
+        }
+
+        // 🤖 BOT-VS-BOT LOOP DETECTOR (Safeguard against Automated Bots & Meta Business Auto-Replies)
+        const recentIncomingMsgs = await Message.find({ 
+          tenantId, 
+          customerId: customer._id, 
+          sender: 'customer' 
+        }).sort({ createdAt: -1 }).limit(3);
+
+        // A. Meta Business System Notice Check
+        const isMetaSystemNotice = trimmedText.includes('This business is now using a secure service from Meta') ||
+                                   trimmedText.includes('Reply STOP to opt out') ||
+                                   trimmedText.includes('automated response') ||
+                                   trimmedText.includes('auto-generated');
+
+        // B. Repetitive Echo Detection (Check if customer bot is repeating same text/template)
+        let isRepetitiveBotEcho = false;
+        if (recentIncomingMsgs.length >= 2) {
+          const lastText = (recentIncomingMsgs[1].content || '').trim();
+          if (lastText && lastText === trimmedText && trimmedText.length > 10) {
+            isRepetitiveBotEcho = true;
+          }
+        }
+
+        if (isMetaSystemNotice || isRepetitiveBotEcho) {
+          console.log(`[Bot Loop Safeguard] 🤖 External Automated Bot detected for ${customer.name || remoteJid}. Pausing AI to avoid infinite loop!`);
+          customer.aiPaused = true;
+          customer.aiStatusState = 'PAUSED_BOT_LOOP';
+          customer.lastResponseReason = `🤖 Automated Bot/Meta System reply detected. AI paused to prevent infinite loop.`;
+          await customer.save();
           if (io) io.to(tenantId).emit('customer-updated', customer);
           continue;
         }
